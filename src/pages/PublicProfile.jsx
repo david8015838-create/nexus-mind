@@ -121,8 +121,21 @@ const PublicProfile = () => {
         )}
 
         {/* Footer */}
-        <footer className="mt-24 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+        <footer className="mt-24 flex flex-col items-center gap-6 animate-in fade-in duration-1000 delay-500">
+          <div className="h-px w-12 bg-white/10 mb-2"></div>
+          <div className="text-center">
+            <h3 className="text-lg font-bold text-white/90 mb-2">歡迎使用 Nexus Mind</h3>
+            <p className="text-sm text-white/40 mb-6">打造您的專屬社交情報網絡，珍藏每一份記憶。</p>
+            <a 
+              href={window.location.origin + '/nexus-mind/'}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-primary/10 border border-primary/20 text-primary hover:bg-primary hover:text-white transition-all duration-300 font-bold text-sm shadow-lg shadow-primary/5"
+            >
+              <span className="material-symbols-outlined text-lg">explore</span>
+              探索此網站
+            </a>
+          </div>
+          
+          <div className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
             <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Powered by</span>
             <span className="text-[10px] font-black text-primary uppercase tracking-widest">Nexus Mind</span>
           </div>

@@ -44,8 +44,10 @@ const TheProfile = () => {
   const handleEditStart = () => {
     setEditForm({
       name: contact.name,
+      company: contact.company || '',
       birthday: contact.birthday || '',
       phone: contact.phone || '',
+      email: contact.email || '',
       tags: contact.tags?.join(', ') || '',
       ocrText: contact.ocrText || '',
       events: contact.events || [],
@@ -61,8 +63,10 @@ const TheProfile = () => {
   const handleSave = async () => {
     await updateContact(id, {
       name: editForm.name,
+      company: editForm.company,
       birthday: editForm.birthday || null,
       phone: editForm.phone,
+      email: editForm.email,
       tags: editForm.tags.split(',').map(t => t.trim()).filter(t => t),
       ocrText: editForm.ocrText,
       events: editForm.events,
@@ -176,12 +180,26 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                 </span>
               </div>
               <h1 className="text-3xl font-black text-white tracking-tight mb-1 drop-shadow-lg">{contact.name}</h1>
-              {contact.phone && (
-                <div className="flex items-center gap-2 text-white/60">
-                  <span className="material-symbols-outlined text-[16px]">call</span>
-                  <span className="text-sm font-medium tracking-wide">{contact.phone}</span>
-                </div>
-              )}
+              <div className="flex flex-col gap-1">
+                {contact.company && (
+                  <div className="flex items-center gap-2 text-primary/80 mb-1">
+                    <span className="material-symbols-outlined text-[16px]">business</span>
+                    <span className="text-xs font-bold tracking-widest uppercase">{contact.company}</span>
+                  </div>
+                )}
+                {contact.phone && (
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="material-symbols-outlined text-[16px]">call</span>
+                    <span className="text-sm font-medium tracking-wide">{contact.phone}</span>
+                  </div>
+                )}
+                {contact.email && (
+                  <div className="flex items-center gap-2 text-white/60">
+                    <span className="material-symbols-outlined text-[16px]">mail</span>
+                    <span className="text-sm font-medium tracking-wide">{contact.email}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -262,6 +280,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">姓名</label>
               <input 
+                type="text"
                 className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner"
                 value={editForm.name}
                 onChange={(e) => setEditForm({...editForm, name: e.target.value})}
@@ -269,24 +288,48 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">電話</label>
+              <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">公司名稱</label>
               <input 
-                type="tel"
+                type="text"
                 className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner"
-                placeholder="09xx-xxx-xxx"
-                value={editForm.phone}
-                onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                placeholder="公司、單位或組織名稱"
+                value={editForm.company}
+                onChange={(e) => setEditForm({...editForm, company: e.target.value})}
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">生日 (YYYY-MM-DD)</label>
-              <input 
-                type="date"
-                className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner color-scheme-dark"
-                value={editForm.birthday}
-                onChange={(e) => setEditForm({...editForm, birthday: e.target.value})}
-              />
+            <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">電話</label>
+                <input 
+                  type="tel"
+                  className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner"
+                  placeholder="09xx-xxx-xxx"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">電子郵件</label>
+                <input 
+                  type="email"
+                  className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner"
+                  placeholder="example@mail.com"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">生日 (YYYY-MM-DD)</label>
+                <input 
+                  type="date"
+                  className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner color-scheme-dark"
+                  value={editForm.birthday}
+                  onChange={(e) => setEditForm({...editForm, birthday: e.target.value})}
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">所屬分類</label>

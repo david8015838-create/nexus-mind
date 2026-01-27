@@ -2,8 +2,8 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('NexusMindDB');
 
-db.version(3).stores({
-  contacts: 'id, name, ocrText, phone, *tags, lastUpdated',
+db.version(4).stores({
+  contacts: 'id, name, ocrText, phone, email, company, *tags, lastUpdated',
   settings: 'id',
   schedules: 'id, title, date, *contactIds, type'
 });

@@ -14,7 +14,7 @@ const MemoryFeed = () => {
   const [showQR, setShowQR] = useState(false);
 
   const shareUrl = useMemo(() => {
-    if (!currentUser) return `${window.location.origin}/nexus-mind/`;
+    if (!currentUser) return null;
     return `${window.location.origin}/nexus-mind/p/${currentUser.uid}`;
   }, [currentUser]);
 
@@ -101,6 +101,7 @@ const MemoryFeed = () => {
     if (!searchQuery.trim()) return [];
     return contacts?.filter(c => 
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.tags?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
     ).sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()) || [];
   }, [contacts, searchQuery]);
@@ -162,17 +163,70 @@ const MemoryFeed = () => {
       });
       const base64String = await base64Promise;
 
-      const result = await Tesseract.recognize(file, 'eng', {
+      // 使用繁體中文與英文進行辨識
+      const result = await Tesseract.recognize(file, 'chi_tra+eng', {
         logger: m => console.log(m)
       });
       
       const ocrText = result.data.text;
+      const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean);
+      
+      // 簡易解析邏輯
+      let extractedName = '新掃描聯絡人 (OCR)';
+      let extractedPhone = '';
+      let extractedEmail = '';
+      let extractedCompany = '';
+
+      // 1. 提取電話 (尋找符合電話格式的字串)
+      const phoneRegex = /(?:\+?886|0)9\d{2}-?\d{3}-?\d{3}|(?:\+?886|0)\d{1,2}-?\d{3,4}-?\d{4}/;
+      const phoneMatch = ocrText.match(phoneRegex);
+      if (phoneMatch) extractedPhone = phoneMatch[0];
+
+      // 2. 提取 Email
+      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
+      const emailMatch = ocrText.match(emailRegex);
+      if (emailMatch) extractedEmail = emailMatch[0];
+
+      // 3. 提取公司名稱 (尋找常見關鍵字)
+      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.'];
+      const companyLine = lines.find(line => 
+        companyKeywords.some(keyword => line.includes(keyword)) && 
+        line.length > 2 && 
+        line.length < 30
+      );
+      if (companyLine) {
+        extractedCompany = companyLine.trim();
+      }
+
+      // 4. 提取姓名 (通常在第一行或包含特定關鍵字之後，這裡採樣第一行非空白字串)
+      if (lines.length > 0) {
+        // 排除掉明顯是公司名或地址或 Email 的行
+        const possibleName = lines.find(l => {
+          const isTooLong = l.length > 10;
+          const isTooShort = l.length < 2;
+          const isEmail = l.includes('@');
+          const isPhone = /\d{4}/.test(l);
+          const isCompany = extractedCompany === l || companyKeywords.some(k => l.includes(k));
+          const hasAddressKeyword = ['路', '街', '巷', '弄', '號', '樓', '室'].some(k => l.includes(k));
+          
+          return !isTooLong && !isTooShort && !isEmail && !isPhone && !isCompany && !hasAddressKeyword;
+        });
+        if (possibleName) extractedName = possibleName;
+      }
+
       const newContactId = await addContact({
-        name: '新掃描聯絡人 (OCR)',
+        name: extractedName,
+        phone: extractedPhone,
+        email: extractedEmail,
+        company: extractedCompany,
         cardImage: base64String,
         ocrText,
         tags: ['OCR 掃描'],
-        memories: [{ date: new Date(), content: '掃描了名片/文件。', location: '未知' }],
+        memories: [{ 
+          date: new Date(), 
+          content: `透過名片掃描新增。原始文字：\n${ocrText.substring(0, 100)}...`, 
+          location: '名片掃描' 
+        }],
         importance: 50,
       });
 
@@ -464,41 +518,59 @@ const MemoryFeed = () => {
                 <span className="material-symbols-outlined text-amber-400 text-4xl">qr_code_2</span>
               </div>
               <h2 className="text-2xl font-black text-white mb-2">智慧名片分享</h2>
-              <p className="text-white/40 text-sm mb-10 leading-relaxed max-w-[280px]">
-                讓他人掃描下方 QR Code，即可直接在瀏覽器查看您的公開社交檔案。
-              </p>
-
-              <div className="relative group">
-                <div className="absolute -inset-4 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                <div className="p-6 bg-white rounded-[32px] shadow-2xl relative z-10">
-                  <QRCodeSVG 
-                    value={shareUrl} 
-                    size={200}
-                    level="H"
-                    includeMargin={false}
-                    imageSettings={{
-                      src: userProfile?.avatar || "/pwa-192x192.png",
-                      x: undefined,
-                      y: undefined,
-                      height: 40,
-                      width: 40,
-                      excavate: true,
-                    }}
-                  />
+              
+              {!currentUser ? (
+                <div className="space-y-6">
+                  <p className="text-white/40 text-sm leading-relaxed max-w-[280px]">
+                    請先登入以產生您的個人專屬名片 QR Code。
+                  </p>
+                  <button 
+                    onClick={login}
+                    className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-white text-black font-black text-sm hover:bg-white/90 transition-all active:scale-95 shadow-xl"
+                  >
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" className="size-5" alt="google" />
+                    使用 Google 登入
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <p className="text-white/40 text-sm mb-10 leading-relaxed max-w-[280px]">
+                    讓他人掃描下方 QR Code，即可直接在瀏覽器查看您的公開社交檔案。
+                  </p>
 
-              <div className="mt-10 w-full p-5 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group cursor-pointer hover:bg-white/10 transition-all"
-                   onClick={() => {
-                     navigator.clipboard.writeText(shareUrl);
-                     alert('連結已複製到剪貼簿！');
-                   }}>
-                <div className="flex flex-col items-start">
-                  <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">您的專屬連結</span>
-                  <span className="text-xs text-primary font-bold truncate max-w-[200px]">{shareUrl}</span>
-                </div>
-                <span className="material-symbols-outlined text-white/20 group-hover:text-primary transition-colors">content_copy</span>
-              </div>
+                  <div className="relative group">
+                    <div className="absolute -inset-4 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                    <div className="p-6 bg-white rounded-[32px] shadow-2xl relative z-10">
+                      <QRCodeSVG 
+                        value={shareUrl} 
+                        size={240}
+                        level="H"
+                        includeMargin={true}
+                        imageSettings={{
+                          src: userProfile?.avatar || "/pwa-192x192.png",
+                          x: undefined,
+                          y: undefined,
+                          height: 48,
+                          width: 48,
+                          excavate: true,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-10 w-full p-5 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group cursor-pointer hover:bg-white/10 transition-all"
+                      onClick={() => {
+                        navigator.clipboard.writeText(shareUrl);
+                        alert('連結已複製到剪貼簿！');
+                      }}>
+                    <div className="flex flex-col items-start">
+                      <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">您的專屬連結</span>
+                      <span className="text-xs text-primary font-bold truncate max-w-[200px]">{shareUrl}</span>
+                    </div>
+                    <span className="material-symbols-outlined text-white/20 group-hover:text-primary transition-colors">content_copy</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <button 
@@ -641,7 +713,7 @@ const MemoryFeed = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">發生日期</label>
                   <input 

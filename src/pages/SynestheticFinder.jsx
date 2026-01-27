@@ -26,13 +26,15 @@ const SynestheticFinder = () => {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(contact => {
         const matchName = contact.name?.toLowerCase().includes(query);
+        const matchCompany = contact.company?.toLowerCase().includes(query);
         const matchPhone = contact.phone?.toLowerCase().includes(query);
         const matchTags = contact.tags?.some(tag => tag.toLowerCase().includes(query));
         const matchOCR = contact.ocrText?.toLowerCase().includes(query);
         const matchMemories = contact.memories?.some(m => m.content.toLowerCase().includes(query));
         
-        if (matchName || matchPhone || matchTags || matchOCR || matchMemories) {
+        if (matchName || matchCompany || matchPhone || matchTags || matchOCR || matchMemories) {
           contact._matchReason = matchName ? '姓名匹配' : 
+                                 matchCompany ? '公司匹配' :
                                  matchPhone ? '電話匹配' :
                                  matchTags ? `標籤 #${query}` : 
                                  matchOCR ? '名片辨識' : '記憶內容';
@@ -77,7 +79,6 @@ const SynestheticFinder = () => {
             type="text" 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            autoFocus
           />
           {searchQuery && (
             <div className="absolute inset-y-0 right-4 flex items-center">

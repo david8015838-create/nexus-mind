@@ -136,6 +136,21 @@ const SettingsPage = () => {
     }
   };
 
+  const handleEditCategory = async (oldCat, idx) => {
+    const newCat = await customPrompt('編輯分類', '輸入新的分類名稱...', oldCat);
+    if (newCat && newCat !== oldCat) {
+      if (isEditing) {
+        const newCats = [...editForm.categories];
+        newCats[idx] = newCat;
+        setEditForm({...editForm, categories: newCats});
+      } else {
+        const currentCats = [...(userProfile.categories || ['朋友', '同事', '家人', '交際', '重要'])];
+        currentCats[idx] = newCat;
+        await updateProfile({ ...userProfile, categories: currentCats });
+      }
+    }
+  };
+
   const handleShare = async () => {
     if (!currentUser) {
       alert('請先登入 Google 帳號以生成分享連結');
@@ -444,21 +459,34 @@ const SettingsPage = () => {
                           : 'bg-white/5 text-white/60'
                       }`}
                     >
-                      <span>{cat}</span>
+                      <span 
+                        onClick={() => isEditing && handleEditCategory(cat, idx)}
+                        className={isEditing ? 'cursor-pointer hover:text-primary transition-colors' : ''}
+                      >
+                        {cat}
+                      </span>
                       {isEditing && (
-                        <button 
-                          onClick={() => {
-                            if (window.confirm(`確定要刪除分類「${cat}」嗎？`)) {
-                              setEditForm({
-                                ...editForm, 
-                                categories: editForm.categories.filter((_, i) => i !== idx)
-                              });
-                            }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-all flex items-center"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">close</span>
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => handleEditCategory(cat, idx)}
+                            className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-primary transition-all flex items-center"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">edit</span>
+                          </button>
+                          <button 
+                            onClick={() => {
+                              if (window.confirm(`確定要刪除分類「${cat}」嗎？`)) {
+                                setEditForm({
+                                  ...editForm, 
+                                  categories: editForm.categories.filter((_, i) => i !== idx)
+                                });
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-all flex items-center"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -539,8 +567,21 @@ const SettingsPage = () => {
                 <p className="text-sm text-white/40">別人掃描此碼即可查看您的公開個人網站</p>
               </div>
               
-              <div className="p-4 bg-white rounded-3xl">
-                <QRCodeSVG value={shareUrl} size={180} level="H" includeMargin={true} />
+              <div className="p-5 bg-white rounded-3xl shadow-xl">
+                <QRCodeSVG 
+                  value={shareUrl} 
+                  size={200} 
+                  level="H" 
+                  includeMargin={true}
+                  imageSettings={{
+                    src: userProfile?.avatar || "/pwa-192x192.png",
+                    x: undefined,
+                    y: undefined,
+                    height: 40,
+                    width: 40,
+                    excavate: true,
+                  }}
+                />
               </div>
 
               <div className="w-full space-y-3">
