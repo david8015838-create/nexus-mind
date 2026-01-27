@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/nexus-mind/sw.js', { scope: '/nexus-mind/' })})}
