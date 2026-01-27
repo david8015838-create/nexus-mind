@@ -193,6 +193,12 @@ const MemoryFeed = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-[#030303] via-[#030303]/80 to-transparent pointer-events-none -z-10"></div>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowQR(true)}
+              className="size-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/20 transition-all active:scale-90 group"
+            >
+              <span className="material-symbols-outlined text-[22px] group-hover:rotate-12 transition-transform">qr_code_2</span>
+            </button>
             <div 
               className="relative group cursor-pointer"
               onClick={() => navigate('/settings')}
@@ -442,6 +448,65 @@ const MemoryFeed = () => {
                 我了解了，開始體驗
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* QR Share Drawer */}
+      {showQR && (
+        <div className="fixed inset-0 z-[150] flex items-end justify-center px-4 pb-8">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowQR(false)}></div>
+          <div className="w-full max-w-[440px] bg-gradient-to-b from-[#1a1c22] to-[#0a0a0c] border border-white/10 rounded-[40px] p-8 relative z-10 animate-in slide-in-from-bottom-full duration-500 shadow-2xl">
+            <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-10"></div>
+            
+            <div className="flex flex-col items-center text-center">
+              <div className="size-20 rounded-[28px] bg-amber-400/10 flex items-center justify-center mb-6 ring-1 ring-amber-400/20">
+                <span className="material-symbols-outlined text-amber-400 text-4xl">qr_code_2</span>
+              </div>
+              <h2 className="text-2xl font-black text-white mb-2">智慧名片分享</h2>
+              <p className="text-white/40 text-sm mb-10 leading-relaxed max-w-[280px]">
+                讓他人掃描下方 QR Code，即可直接在瀏覽器查看您的公開社交檔案。
+              </p>
+
+              <div className="relative group">
+                <div className="absolute -inset-4 bg-primary/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                <div className="p-6 bg-white rounded-[32px] shadow-2xl relative z-10">
+                  <QRCodeSVG 
+                    value={shareUrl} 
+                    size={200}
+                    level="H"
+                    includeMargin={false}
+                    imageSettings={{
+                      src: userProfile?.avatar || "/pwa-192x192.png",
+                      x: undefined,
+                      y: undefined,
+                      height: 40,
+                      width: 40,
+                      excavate: true,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-10 w-full p-5 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between group cursor-pointer hover:bg-white/10 transition-all"
+                   onClick={() => {
+                     navigator.clipboard.writeText(shareUrl);
+                     alert('連結已複製到剪貼簿！');
+                   }}>
+                <div className="flex flex-col items-start">
+                  <span className="text-[10px] font-black text-white/20 uppercase tracking-widest mb-1">您的專屬連結</span>
+                  <span className="text-xs text-primary font-bold truncate max-w-[200px]">{shareUrl}</span>
+                </div>
+                <span className="material-symbols-outlined text-white/20 group-hover:text-primary transition-colors">content_copy</span>
+              </div>
+            </div>
+
+            <button 
+              onClick={() => setShowQR(false)}
+              className="w-full h-16 bg-white/5 hover:bg-white/10 text-white font-bold rounded-3xl mt-8 transition-all border border-white/5 active:scale-95"
+            >
+              關閉
+            </button>
           </div>
         </div>
       )}

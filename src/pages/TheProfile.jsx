@@ -376,8 +376,8 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                 {editForm.links.map((link, idx) => (
                   <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-right-2 duration-300">
                     <input 
-                      className="w-24 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all shrink-0"
-                      placeholder="名稱 (IG)"
+                      className="w-20 bg-[#1c1f27] border border-white/10 rounded-xl px-3 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all shrink-0"
+                      placeholder="名稱"
                       value={link.label}
                       onChange={(e) => {
                         const newLinks = [...editForm.links];
@@ -386,8 +386,8 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                       }}
                     />
                     <input 
-                      className="flex-1 min-w-0 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
-                      placeholder="網址 (https://...)"
+                      className="flex-1 min-w-0 bg-[#1c1f27] border border-white/10 rounded-xl px-3 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
+                      placeholder="網址"
                       value={link.url}
                       onChange={(e) => {
                         const newLinks = [...editForm.links];
@@ -397,7 +397,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                     />
                     <button 
                       onClick={() => setEditForm({...editForm, links: editForm.links.filter((_, i) => i !== idx)})} 
-                      className="size-10 rounded-xl bg-red-400/5 text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all flex items-center justify-center shrink-0"
+                      className="size-11 rounded-xl bg-red-400/5 text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all flex items-center justify-center shrink-0"
                     >
                       <span className="material-symbols-outlined text-[18px]">delete</span>
                     </button>
@@ -485,7 +485,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                   <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-right-2 duration-200">
                     <input 
                       type="date"
-                      className="bg-[#1c1f27] border border-white/10 rounded-xl px-3 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all color-scheme-dark w-32 shrink-0"
+                      className="bg-[#1c1f27] border border-white/10 rounded-xl px-2 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all color-scheme-dark w-[110px] shrink-0"
                       value={ev.date}
                       onChange={(e) => {
                         const newEvents = [...editForm.events];
@@ -494,7 +494,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                       }}
                     />
                     <input 
-                      className="flex-1 min-w-0 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
+                      className="flex-1 min-w-0 bg-[#1c1f27] border border-white/10 rounded-xl px-3 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
                       placeholder="事件名稱"
                       value={ev.title}
                       onChange={(e) => {

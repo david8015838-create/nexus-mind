@@ -98,6 +98,26 @@ const SettingsPage = () => {
     reader.readAsDataURL(file);
   };
 
+  const handleSyncToCloud = async () => {
+    try {
+      await syncToCloud();
+      alert('資料已成功鏡像同步至雲端！');
+    } catch (error) {
+      alert('同步失敗：' + error.message);
+    }
+  };
+
+  const handleSyncFromCloud = async () => {
+    if (window.confirm('下載雲端資料將會「覆蓋」目前裝置上的所有本地資料，確定要繼續嗎？')) {
+      try {
+        await syncFromCloud();
+        alert('資料已成功從雲端還原！');
+      } catch (error) {
+        alert('還原失敗：' + error.message);
+      }
+    }
+  };
+
   const handleAddCategory = async () => {
     const newCat = await customPrompt('新增分類', '輸入分類名稱...');
     if (newCat) {
@@ -364,7 +384,7 @@ const SettingsPage = () => {
                   
                   <div className="p-4 grid grid-cols-2 gap-3">
                     <button 
-                      onClick={syncToCloud}
+                      onClick={handleSyncToCloud}
                       disabled={isSyncing}
                       className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all disabled:opacity-50"
                     >
@@ -372,7 +392,7 @@ const SettingsPage = () => {
                       {isSyncing ? '同步中...' : '上傳雲端'}
                     </button>
                     <button 
-                      onClick={syncFromCloud}
+                      onClick={handleSyncFromCloud}
                       disabled={isSyncing}
                       className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 text-xs font-bold transition-all disabled:opacity-50"
                     >

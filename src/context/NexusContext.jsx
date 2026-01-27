@@ -34,7 +34,24 @@ export const NexusProvider = ({ children }) => {
   const login = async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      return result.user;
+      const user = result.user;
+      
+      // Check if user has data on cloud
+      const userDocRef = doc(firestore, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const localContacts = await db.contacts.count();
+        if (localContacts === 0) {
+          if (window.confirm('偵測到雲端存有您的社交資料，是否立即同步至此裝置？')) {
+            // Need to set user first so syncFromCloud works
+            setCurrentUser(user);
+            await syncFromCloud();
+          }
+        }
+      }
+      
+      return user;
     } catch (error) {
       console.error("Login Error:", error);
       throw error;
@@ -64,26 +81,54 @@ export const NexusProvider = ({ children }) => {
         email: currentUser.email 
       }, { merge: true });
 
-      // Sync Contacts
-      const contactsColRef = collection(firestore, 'users', currentUser.uid, 'contacts');
-      const batch = writeBatch(firestore);
-      
-      allContacts.forEach(contact => {
-        const contactRef = doc(contactsColRef, contact.id);
-        batch.set(contactRef, contact);
-      });
+      // Helper for batch processing with mirroring
+      const commitInBatches = async (collectionName, dataArray) => {
+        const colRef = collection(firestore, 'users', currentUser.uid, collectionName);
+        
+        // 1. Get existing docs to identify what to delete (Mirroring)
+        const existingDocs = await getDocs(colRef);
+        const existingIds = existingDocs.docs.map(doc => doc.id);
+        const currentIds = dataArray.map(item => item.id);
+        const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
 
-      // Sync Schedules
-      const schedulesColRef = collection(firestore, 'users', currentUser.uid, 'schedules');
-      allSchedules.forEach(schedule => {
-        const scheduleRef = doc(schedulesColRef, schedule.id);
-        batch.set(scheduleRef, schedule);
-      });
+        // 2. Process deletions and updates in chunks (Firestore limit is 500)
+        let batch = writeBatch(firestore);
+        let count = 0;
 
-      await batch.commit();
-      console.log("Synced to cloud successfully");
+        // Handle deletions
+        for (const id of idsToDelete) {
+          batch.delete(doc(colRef, id));
+          count++;
+          if (count === 500) {
+            await batch.commit();
+            batch = writeBatch(firestore);
+            count = 0;
+          }
+        }
+
+        // Handle updates/adds
+        for (const item of dataArray) {
+          // Deep clone to ensure serializable data and handle Dates
+          const serializedItem = JSON.parse(JSON.stringify(item));
+          batch.set(doc(colRef, item.id), serializedItem);
+          count++;
+          if (count === 500) {
+            await batch.commit();
+            batch = writeBatch(firestore);
+            count = 0;
+          }
+        }
+
+        if (count > 0) await batch.commit();
+      };
+
+      await commitInBatches('contacts', allContacts);
+      await commitInBatches('schedules', allSchedules);
+
+      console.log("Synced to cloud successfully (Mirror Mode)");
     } catch (error) {
       console.error("Sync Error:", error);
+      throw error;
     } finally {
       setIsSyncing(false);
     }
@@ -103,33 +148,48 @@ export const NexusProvider = ({ children }) => {
         }
       }
 
+      // 1. Sync Contacts
       const contactsColRef = collection(firestore, 'users', currentUser.uid, 'contacts');
       const querySnapshot = await getDocs(contactsColRef);
-      
       const cloudContacts = [];
       querySnapshot.forEach(doc => {
-        cloudContacts.push(doc.data());
+        const data = doc.data();
+        // Restore dates from string if needed
+        if (data.memories) {
+          data.memories = data.memories.map(m => ({
+            ...m,
+            date: m.date ? new Date(m.date) : new Date()
+          }));
+        }
+        cloudContacts.push(data);
       });
 
       if (cloudContacts.length > 0) {
+        // Mirroring: Clear local and replace with cloud data
+        await db.contacts.clear();
         await db.contacts.bulkPut(cloudContacts);
       }
 
-      // Sync Schedules from cloud
+      // 2. Sync Schedules
       const schedulesColRef = collection(firestore, 'users', currentUser.uid, 'schedules');
       const schedulesSnapshot = await getDocs(schedulesColRef);
       const cloudSchedules = [];
       schedulesSnapshot.forEach(doc => {
-        cloudSchedules.push(doc.data());
+        const data = doc.data();
+        // Ensure date is a Date object
+        if (data.date) data.date = new Date(data.date);
+        cloudSchedules.push(data);
       });
 
       if (cloudSchedules.length > 0) {
+        await db.schedules.clear();
         await db.schedules.bulkPut(cloudSchedules);
       }
 
-      console.log("Synced from cloud successfully");
+      console.log("Synced from cloud successfully (Mirror Mode)");
     } catch (error) {
       console.error("Download Error:", error);
+      throw error;
     } finally {
       setIsSyncing(false);
     }

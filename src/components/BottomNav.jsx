@@ -10,6 +10,7 @@ const BottomNav = () => {
   const navItems = [
     { id: 'feed', icon: 'auto_awesome_motion', label: '情報', path: '/' },
     { id: 'search', icon: 'search', label: '搜尋', path: '/search' },
+    { id: 'graph', icon: 'hub', label: '圖譜', path: '/graph' },
     { id: 'vault', icon: 'calendar_month', label: '日程', path: '/vault' },
     { id: 'settings', icon: 'settings', label: '設定', path: '/settings' },
   ];
