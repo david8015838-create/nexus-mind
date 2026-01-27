@@ -182,7 +182,7 @@ const SettingsPage = () => {
             </button>
             <div>
               <h1 className="text-xl font-black tracking-tight text-white">設定</h1>
-              <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">User Preferences</p>
+              <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">v1.0.1 • User Preferences</p>
             </div>
           </div>
           {!isEditing ? (
