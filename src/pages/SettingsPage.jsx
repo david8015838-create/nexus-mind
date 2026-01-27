@@ -1,18 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { useNexus } from '../context/NexusContext';
 
 const SettingsPage = () => {
   const navigate = useNavigate();
-  const { userProfile, updateProfile, customPrompt, currentUser, login, logout, syncToCloud, syncFromCloud, isSyncing } = useNexus();
+  const { userProfile, updateProfile, publishProfile, customPrompt, currentUser, login, logout, syncToCloud, syncFromCloud, isSyncing, setUnsavedChanges } = useNexus();
   const [isEditing, setIsEditing] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
   const [editForm, setEditForm] = useState({
     name: '',
     bio: '',
     avatar: '',
+    themeColor: '',
     links: [],
     categories: []
   });
+
+  // Dirty check logic
+  const hasChanges = JSON.stringify(editForm) !== JSON.stringify({
+    name: userProfile?.name || '',
+    bio: userProfile?.bio || '',
+    avatar: userProfile?.avatar || '',
+    themeColor: userProfile?.themeColor || '#2b6cee',
+    links: userProfile?.links || [],
+    categories: userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要']
+  });
+
+  useEffect(() => {
+    setUnsavedChanges(isEditing && hasChanges);
+    return () => setUnsavedChanges(false);
+  }, [isEditing, hasChanges, setUnsavedChanges]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isEditing && hasChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isEditing, hasChanges]);
+
+  const handleBack = () => {
+    if (isEditing && hasChanges) {
+      if (window.confirm('您有尚未儲存的變更，確定要離開嗎？')) {
+        setUnsavedChanges(false);
+        navigate(-1);
+      }
+    } else {
+      navigate(-1);
+    }
+  };
 
   useEffect(() => {
     if (userProfile) {
@@ -20,15 +64,38 @@ const SettingsPage = () => {
         name: userProfile.name || '',
         bio: userProfile.bio || '',
         avatar: userProfile.avatar || '',
+        themeColor: userProfile.themeColor || '#2b6cee',
         links: userProfile.links || [],
         categories: userProfile.categories || ['朋友', '同事', '家人', '交際', '重要']
       });
     }
   }, [userProfile]);
 
+  const themeColors = [
+    { name: 'Nexus Blue', value: '#2b6cee' },
+    { name: 'Cyber Purple', value: '#8b5cf6' },
+    { name: 'Neon Pink', value: '#ec4899' },
+    { name: 'Emerald', value: '#10b981' },
+    { name: 'Amber', value: '#f59e0b' },
+    { name: 'Crimson', value: '#ef4444' },
+    { name: 'Midnight', value: '#334155' },
+  ];
+
   const handleSave = async () => {
     await updateProfile(editForm);
+    setUnsavedChanges(false);
     setIsEditing(false);
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setEditForm(prev => ({...prev, avatar: reader.result}));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAddCategory = async () => {
@@ -49,36 +116,74 @@ const SettingsPage = () => {
     }
   };
 
+  const handleShare = async () => {
+    if (!currentUser) {
+      alert('請先登入 Google 帳號以生成分享連結');
+      return;
+    }
+    
+    setIsPublishing(true);
+    try {
+      const uid = await publishProfile();
+      // 生成分享網址 (假設在當前網域下的 /p/:uid)
+      const url = `${window.location.origin}/nexus-mind/p/${uid}`;
+      setShareUrl(url);
+      setShowShareModal(true);
+    } catch (error) {
+      console.error("Publish Error:", error);
+      alert('發佈失敗，請檢查網路連線');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleDirectThemeChange = async (color) => {
+    if (isEditing) {
+      setEditForm({ ...editForm, themeColor: color });
+    } else {
+      await updateProfile({ ...userProfile, themeColor: color });
+    }
+  };
+
   if (!userProfile) return null;
 
   return (
-    <div className="bg-background-dark text-white min-h-screen pb-24">
+    <div className="text-white pb-24">
       {/* Header */}
-      <div className="px-6 pt-12 pb-6 flex justify-between items-center border-b border-white/5 bg-background-dark/80 backdrop-blur-md sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 -ml-2 text-white/60 hover:text-white transition-colors">
-            <span className="material-symbols-outlined">arrow_back_ios_new</span>
-          </button>
-          <h1 className="text-xl font-bold tracking-tight">設定</h1>
+      <div className="sticky top-0 z-40 -mx-4 px-6 pt-8 pb-4 transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#030303] via-[#030303]/80 to-transparent pointer-events-none -z-10"></div>
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={handleBack} 
+              className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-primary hover:bg-primary/10 transition-all active:scale-90"
+            >
+              <span className="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>
+            </button>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-white">設定</h1>
+              <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">User Preferences</p>
+            </div>
+          </div>
+          {!isEditing ? (
+            <button 
+              onClick={() => setIsEditing(true)}
+              className="text-xs font-black text-primary px-5 py-2.5 rounded-xl bg-primary/10 border border-primary/20 hover:bg-primary hover:text-white transition-all uppercase tracking-widest shadow-lg shadow-primary/10"
+            >
+              編輯個人檔案
+            </button>
+          ) : (
+            <button 
+              onClick={handleSave}
+              className="text-xs font-black text-white px-6 py-2.5 rounded-xl bg-primary hover:bg-primary-dark transition-all uppercase tracking-widest shadow-lg shadow-primary/20"
+            >
+              儲存變更
+            </button>
+          )}
         </div>
-        {!isEditing ? (
-          <button 
-            onClick={() => setIsEditing(true)}
-            className="text-sm font-bold text-primary px-4 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-all"
-          >
-            編輯個人檔案
-          </button>
-        ) : (
-          <button 
-            onClick={handleSave}
-            className="text-sm font-bold text-white px-4 py-1.5 rounded-full bg-primary hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
-          >
-            儲存
-          </button>
-        )}
       </div>
 
-      <main className="px-6 pt-8 max-w-lg mx-auto space-y-8">
+      <main className="px-6 pt-8 space-y-8">
         {/* Profile Header */}
         <div className="flex flex-col items-center gap-4">
           <div className="relative group">
@@ -92,15 +197,21 @@ const SettingsPage = () => {
               )}
             </div>
             {isEditing && (
-              <button 
-                onClick={async () => {
-                  const url = await customPrompt('大頭照網址', '輸入 URL...');
-                  if (url) setEditForm({...editForm, avatar: url});
-                }}
-                className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <span className="material-symbols-outlined text-white">photo_camera</span>
-              </button>
+              <>
+                <button 
+                  onClick={() => document.getElementById('avatar-input').click()}
+                  className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <span className="material-symbols-outlined text-white">photo_camera</span>
+                </button>
+                <input 
+                  id="avatar-input"
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={handleAvatarChange}
+                />
+              </>
             )}
           </div>
           
@@ -116,6 +227,22 @@ const SettingsPage = () => {
               <h2 className="text-2xl font-bold tracking-tight">{userProfile.name}</h2>
             )}
           </div>
+          
+          {/* Share Profile Button */}
+          {!isEditing && (
+            <button 
+              onClick={handleShare}
+              disabled={isPublishing}
+              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 hover:border-primary/50 hover:bg-primary/10 transition-all group"
+            >
+              <span className={`material-symbols-outlined text-sm ${isPublishing ? 'animate-spin' : 'text-primary'}`}>
+                {isPublishing ? 'sync' : 'share'}
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/60 group-hover:text-primary transition-colors">
+                分享個人檔案網站
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Bio Section */}
@@ -123,14 +250,14 @@ const SettingsPage = () => {
           <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-1">我的簡介</label>
           {isEditing ? (
             <textarea 
-              className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white/80 focus:ring-1 ring-primary outline-none min-h-[100px] resize-none"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm text-white/80 focus:ring-1 ring-primary outline-none min-h-[100px]"
               value={editForm.bio}
               onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
               placeholder="寫點關於您的事..."
             />
           ) : (
-            <div className="bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white/70 leading-relaxed italic">
-              「{userProfile.bio || '尚未設定簡介'}」
+            <div className="bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white/70 leading-relaxed italic whitespace-pre-wrap">
+              {userProfile.bio || '尚未設定簡介'}
             </div>
           )}
         </div>
@@ -339,7 +466,87 @@ const SettingsPage = () => {
             </div>
           </div>
         )}
+
+        {/* Theme Color Section - Moved to Bottom and always accessible */}
+        <div className="space-y-4 pt-8 border-t border-white/5">
+          <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-1 block">主題配色 (隨時切換)</label>
+          <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
+            <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+              {themeColors.map((color) => (
+                <button
+                  key={color.value}
+                  onClick={() => handleDirectThemeChange(color.value)}
+                  className={`relative aspect-square rounded-xl transition-all duration-300 ${
+                    (isEditing ? editForm.themeColor : userProfile.themeColor) === color.value 
+                      ? 'scale-110 ring-2 ring-white ring-offset-4 ring-offset-[#030303]' 
+                      : 'hover:scale-105 opacity-50'
+                  } cursor-pointer`}
+                  style={{ backgroundColor: color.value }}
+                  title={color.name}
+                >
+                  {(isEditing ? editForm.themeColor : userProfile.themeColor) === color.value && (
+                    <span className="material-symbols-outlined text-white text-sm absolute inset-0 flex items-center justify-center">
+                      check
+                    </span>
+                  )}
+                </button>
+              ))}
+              <div className="relative aspect-square rounded-xl bg-white/5 border border-dashed border-white/20 flex items-center justify-center group overflow-hidden">
+                <input 
+                  type="color" 
+                  value={isEditing ? editForm.themeColor : userProfile.themeColor}
+                  onChange={(e) => handleDirectThemeChange(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <span className="material-symbols-outlined text-white/40 group-hover:text-white transition-colors">palette</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
+
+      {/* Share Modal */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowShareModal(false)}></div>
+          <div className="relative w-full max-w-sm bg-[#1c1f27] border border-white/10 rounded-[32px] p-8 animate-in zoom-in-95 duration-300">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="size-16 rounded-2xl bg-primary/20 flex items-center justify-center">
+                <span className="material-symbols-outlined text-primary text-3xl">qr_code_2</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold mb-2">分享個人檔案</h3>
+                <p className="text-sm text-white/40">別人掃描此碼即可查看您的公開個人網站</p>
+              </div>
+              
+              <div className="p-4 bg-white rounded-3xl">
+                <QRCodeSVG value={shareUrl} size={180} level="H" includeMargin={true} />
+              </div>
+
+              <div className="w-full space-y-3">
+                <div className="flex items-center gap-2 p-3 bg-white/5 border border-white/10 rounded-xl">
+                  <span className="flex-1 text-[10px] text-white/40 truncate">{shareUrl}</span>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(shareUrl);
+                      alert('連結已複製！');
+                    }}
+                    className="text-primary text-[10px] font-bold uppercase tracking-widest"
+                  >
+                    複製
+                  </button>
+                </div>
+                <button 
+                  onClick={() => setShowShareModal(false)}
+                  className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all"
+                >
+                  關閉
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

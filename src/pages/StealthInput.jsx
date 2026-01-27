@@ -49,10 +49,13 @@ const StealthInput = () => {
   const currentContact = contacts?.find(c => c.id === activeContactId);
 
   return (
-    <div className="bg-background-dark text-white min-h-screen overflow-hidden select-none relative">
-      {/* Status Bar */}
-      <div className="fixed top-0 w-full z-50 px-8 pt-4 pb-2 flex justify-between items-end">
-        <div className="text-sm font-semibold tracking-tight" onClick={() => navigate(-1)}>9:41</div>
+    <div className="text-white overflow-hidden select-none relative h-screen bg-[#030303]">
+      {/* Status Bar - Improved integration */}
+      <div className="absolute top-0 w-full z-50 px-8 pt-6 pb-4 flex justify-between items-center transition-all">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/60 to-transparent pointer-events-none -z-10"></div>
+        <div className="text-sm font-black tracking-tighter" onClick={() => navigate(-1)}>
+          <span className="bg-white/10 px-2 py-0.5 rounded-md backdrop-blur-md">9:41</span>
+        </div>
         <div className="flex items-center gap-1.5">
           <span className="material-symbols-outlined text-[18px]">signal_cellular_4_bar</span>
           <span className="material-symbols-outlined text-[18px]">wifi</span>

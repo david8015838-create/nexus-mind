@@ -5,23 +5,29 @@ import TheProfile from './pages/TheProfile';
 import StealthInput from './pages/StealthInput';
 import VaultEvents from './pages/VaultEvents';
 import SettingsPage from './pages/SettingsPage';
+import PublicProfile from './pages/PublicProfile';
 import { NexusProvider } from './context/NexusContext';
 import Layout from './components/Layout';
 
 function App() {
   return (
     <NexusProvider>
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<MemoryFeed />} />
-            <Route path="/search" element={<SynestheticFinder />} />
-            <Route path="/profile/:id" element={<TheProfile />} />
-            <Route path="/stealth" element={<StealthInput />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/vault" element={<VaultEvents />} />
-          </Routes>
-        </Layout>
+      <Router basename="/nexus-mind">
+        <Routes>
+          <Route path="/p/:uid" element={<PublicProfile />} />
+          <Route path="/*" element={
+            <Layout>
+              <Routes>
+                <Route path="/" element={<MemoryFeed />} />
+                <Route path="/search" element={<SynestheticFinder />} />
+                <Route path="/profile/:id" element={<TheProfile />} />
+                <Route path="/stealth" element={<StealthInput />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/vault" element={<VaultEvents />} />
+              </Routes>
+            </Layout>
+          } />
+        </Routes>
       </Router>
     </NexusProvider>
   );

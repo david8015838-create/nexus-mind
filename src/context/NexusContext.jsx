@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { db, ensureSeedData } from '../db/database';
+import { db } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { auth, googleProvider, firestore } from '../db/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
@@ -13,12 +13,16 @@ export const NexusProvider = ({ children }) => {
   const contacts = useLiveQuery(() => 
     db.contacts.orderBy('lastUpdated').reverse().toArray()
   );
+  const schedules = useLiveQuery(() => 
+    db.schedules.orderBy('date').toArray()
+  );
   const userProfile = useLiveQuery(() => 
     db.settings.get('userProfile')
   );
   const [currentContactId, setCurrentContactId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -50,6 +54,7 @@ export const NexusProvider = ({ children }) => {
     setIsSyncing(true);
     try {
       const allContacts = await db.contacts.toArray();
+      const allSchedules = await db.schedules.toArray();
       const profile = await db.settings.get('userProfile');
       
       const userDocRef = doc(firestore, 'users', currentUser.uid);
@@ -59,12 +64,20 @@ export const NexusProvider = ({ children }) => {
         email: currentUser.email 
       }, { merge: true });
 
+      // Sync Contacts
       const contactsColRef = collection(firestore, 'users', currentUser.uid, 'contacts');
       const batch = writeBatch(firestore);
       
       allContacts.forEach(contact => {
         const contactRef = doc(contactsColRef, contact.id);
         batch.set(contactRef, contact);
+      });
+
+      // Sync Schedules
+      const schedulesColRef = collection(firestore, 'users', currentUser.uid, 'schedules');
+      allSchedules.forEach(schedule => {
+        const scheduleRef = doc(schedulesColRef, schedule.id);
+        batch.set(scheduleRef, schedule);
       });
 
       await batch.commit();
@@ -101,6 +114,19 @@ export const NexusProvider = ({ children }) => {
       if (cloudContacts.length > 0) {
         await db.contacts.bulkPut(cloudContacts);
       }
+
+      // Sync Schedules from cloud
+      const schedulesColRef = collection(firestore, 'users', currentUser.uid, 'schedules');
+      const schedulesSnapshot = await getDocs(schedulesColRef);
+      const cloudSchedules = [];
+      schedulesSnapshot.forEach(doc => {
+        cloudSchedules.push(doc.data());
+      });
+
+      if (cloudSchedules.length > 0) {
+        await db.schedules.bulkPut(cloudSchedules);
+      }
+
       console.log("Synced from cloud successfully");
     } catch (error) {
       console.error("Download Error:", error);
@@ -118,14 +144,32 @@ export const NexusProvider = ({ children }) => {
           name: '我的名字',
           bio: '這是我的個人簡介',
           avatar: '',
+          themeColor: '#2b6cee',
           links: [],
           categories: ['朋友', '同事', '家人', '交際', '重要']
         });
       }
     };
-    ensureSeedData();
     initProfile();
   }, []);
+
+  // Theme Color Effect
+  useEffect(() => {
+    if (userProfile?.themeColor) {
+      document.documentElement.style.setProperty('--primary-color', userProfile.themeColor);
+      
+      // Calculate RGB for transparency
+      const hex = userProfile.themeColor.replace('#', '');
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+      document.documentElement.style.setProperty('--primary-color-rgb', `${r}, ${g}, ${b}`);
+    }
+  }, [userProfile?.themeColor]);
+
+  const clearAllData = async () => {
+    await db.contacts.clear();
+  };
 
   const addContact = async (contact) => {
     const id = crypto.randomUUID();
@@ -143,6 +187,25 @@ export const NexusProvider = ({ children }) => {
 
   const deleteContact = async (id) => {
     await db.contacts.delete(id);
+  };
+
+  const publishProfile = async () => {
+    if (!currentUser) throw new Error('請先登入以發佈個人檔案');
+    const profile = await db.settings.get('userProfile');
+    const publicRef = doc(firestore, 'public_profiles', currentUser.uid);
+    
+    // 限制發佈的內容：僅照片、名字、簡介、連結
+    const publicData = {
+      name: profile.name,
+      avatar: profile.avatar,
+      bio: profile.bio,
+      links: profile.links || [],
+      uid: currentUser.uid,
+      updatedAt: new Date()
+    };
+    
+    await setDoc(publicRef, publicData);
+    return currentUser.uid;
   };
 
   const addMemory = async (contactId, memory) => {
@@ -176,24 +239,47 @@ export const NexusProvider = ({ children }) => {
     });
   };
 
+  const addSchedule = async (schedule) => {
+    const id = crypto.randomUUID();
+    await db.schedules.add({ ...schedule, id });
+    return id;
+  };
+
+  const updateSchedule = async (id, updates) => {
+    await db.schedules.update(id, updates);
+  };
+
+  const deleteSchedule = async (id) => {
+    await db.schedules.delete(id);
+  };
+
   return (
     <NexusContext.Provider value={{
       contacts,
+      schedules,
       currentContactId,
       setCurrentContactId,
       userProfile,
       updateProfile,
+      publishProfile,
       addContact,
       updateContact,
       deleteContact,
       addMemory,
+      addSchedule,
+      updateSchedule,
+      deleteSchedule,
       customPrompt,
+      promptConfig,
+      setPromptConfig,
       currentUser,
       login,
       logout,
       syncToCloud,
       syncFromCloud,
-      isSyncing
+      isSyncing,
+      unsavedChanges,
+      setUnsavedChanges
     }}>
       {children}
       

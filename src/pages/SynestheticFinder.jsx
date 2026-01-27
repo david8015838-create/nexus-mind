@@ -48,30 +48,31 @@ const SynestheticFinder = () => {
   }, [contacts, searchQuery, activeCategory]);
 
   return (
-    <div className="min-h-screen bg-mesh pb-32 safe-top">
-      <header className="sticky top-0 z-50 bg-background-dark/40 backdrop-blur-xl px-6 py-4 flex items-center justify-between border-b border-white/5">
-        <button 
-          className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all active:scale-90"
-          onClick={() => navigate(-1)}
-        >
-          <span className="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>
-        </button>
-        <div className="text-center">
-          <h1 className="text-xl font-black text-white tracking-tight">聯覺搜尋</h1>
-          <p className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mt-0.5">Synesthetic Search</p>
+    <div className="bg-mesh pb-32 overflow-x-hidden">
+      <header className="sticky top-0 z-50 -mx-4 px-6 pt-12 pb-6 transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#030303] via-[#030303]/80 to-transparent pointer-events-none -z-10"></div>
+        <div className="flex items-center justify-between">
+          <button 
+            className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-primary hover:bg-primary/10 transition-all active:scale-90"
+            onClick={() => navigate(-1)}
+          >
+            <span className="material-symbols-outlined text-[18px]">arrow_back_ios_new</span>
+          </button>
+          <div className="text-center">
+            <h1 className="text-xl font-black text-white tracking-tight">聯覺搜尋</h1>
+            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-0.5">Synesthetic Search</p>
+          </div>
+          <div className="size-10"></div>
         </div>
-        <button className="size-10 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-all">
-          <span className="material-symbols-outlined text-[20px]">tune</span>
-        </button>
       </header>
 
       <div className="px-6 py-6">
         <div className="relative group">
-          <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-            <span className="material-symbols-outlined text-white/20 group-focus-within:text-primary transition-colors">search</span>
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+            <span className="material-symbols-outlined text-white/20 text-[20px] group-focus-within:text-primary transition-colors">search</span>
           </div>
           <input 
-            className="block w-full h-14 pl-14 pr-12 bg-[#1c1f27]/60 backdrop-blur-md border border-white/5 rounded-2xl text-[15px] font-medium text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-xl" 
+            className="block w-full h-12 pl-12 pr-10 bg-[#1c1f27]/60 backdrop-blur-md border border-white/5 rounded-2xl text-[14px] font-medium text-white placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-xl" 
             placeholder="搜尋記憶、電話、標籤..." 
             type="text" 
             value={searchQuery}

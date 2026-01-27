@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { db } from '../db/database';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -7,13 +7,33 @@ import { useNexus } from '../context/NexusContext';
 const TheProfile = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { updateContact, deleteContact, userProfile, updateProfile, customPrompt } = useNexus();
+  const { updateContact, deleteContact, userProfile, updateProfile, customPrompt, schedules } = useNexus();
   
   const contact = useLiveQuery(() => db.contacts.get(id), [id]);
+  const contactSchedules = useMemo(() => {
+    if (!schedules || !id) return [];
+    return schedules.filter(s => s.contactIds.includes(id));
+  }, [schedules, id]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [showShareToast, setShowShareToast] = useState(false);
+
+  const handleFileChange = (e, target) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result;
+      if (target === 'gallery') {
+        setEditForm(prev => ({...prev, gallery: [...prev.gallery, base64String]}));
+      } else if (target === 'cardImage') {
+        setEditForm(prev => ({...prev, cardImage: base64String}));
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (!contact) return (
     <div className="min-h-screen flex items-center justify-center bg-background-dark">
@@ -31,7 +51,8 @@ const TheProfile = () => {
       events: contact.events || [],
       bio: contact.bio || '',
       links: contact.links || [],
-      gallery: contact.gallery || []
+      gallery: contact.gallery || [],
+      cardImage: contact.cardImage || ''
     });
     setIsEditing(true);
     setIsMenuOpen(false);
@@ -47,7 +68,8 @@ const TheProfile = () => {
       events: editForm.events,
       bio: editForm.bio,
       links: editForm.links,
-      gallery: editForm.gallery
+      gallery: editForm.gallery,
+      cardImage: editForm.cardImage
     });
     setIsEditing(false);
   };
@@ -83,21 +105,26 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
   };
 
   return (
-    <div className="relative flex h-auto min-h-screen w-full flex-col max-w-[480px] mx-auto overflow-x-hidden pb-32 bg-background-dark text-white safe-top safe-bottom">
-      <header className="flex items-center bg-transparent p-6 pb-2 justify-between sticky top-0 z-50 backdrop-blur-sm">
-        <div onClick={() => navigate(-1)} className="text-white/60 hover:text-white flex size-10 shrink-0 items-center justify-center rounded-full bg-white/5 cursor-pointer transition-all active:scale-90">
+    <div className="bg-nexus min-h-screen text-white pb-24">
+      {/* Header */}
+      <header className="sticky top-0 z-50 -mx-4 px-6 pt-8 pb-4 flex items-center justify-between transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#030303] via-[#030303]/80 to-transparent pointer-events-none -z-10"></div>
+        <div 
+          onClick={() => navigate(-1)} 
+          className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-primary hover:bg-primary/10 transition-all active:scale-90 cursor-pointer"
+        >
           <span className="material-symbols-outlined text-[20px]">arrow_back_ios_new</span>
         </div>
-        <div className="text-center opacity-0 animate-in fade-in slide-in-from-top-4 duration-700">
-          <h2 className="text-white text-sm font-bold leading-tight tracking-widest uppercase opacity-80">檔案詳情</h2>
-          <p className="text-[10px] text-primary font-bold tracking-[0.2em] uppercase">Profile</p>
+        <div className="text-center">
+          <h2 className="text-xl font-black text-white tracking-tight">檔案詳情</h2>
+          <p className="text-[10px] text-primary font-bold tracking-[0.2em] uppercase">Profile Analytics</p>
         </div>
         <div className="relative flex w-10 items-center justify-end">
           <button 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex cursor-pointer items-center justify-center rounded-full size-10 bg-white/5 text-white/60 hover:text-white transition-all"
+            className="size-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all active:scale-90"
           >
-            <span className="material-symbols-outlined text-[20px]">more_horiz</span>
+            <span className="material-symbols-outlined text-[20px]">more_vert</span>
           </button>
 
           {isMenuOpen && (
@@ -161,8 +188,77 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
       </div>
 
       <div className="px-6 pb-2">
+        {/* Upcoming Schedules */}
+        {contactSchedules.length > 0 && (
+          <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-700 delay-100">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary ml-1">即將到來的日程</h2>
+            <div className="space-y-3">
+              {contactSchedules.map(schedule => {
+                const diffDays = Math.ceil((new Date(schedule.date) - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24));
+                const isVerySoon = diffDays >= 0 && diffDays <= 3;
+                
+                return (
+                  <div key={schedule.id} className={`p-4 rounded-2xl border transition-all ${
+                    isVerySoon 
+                      ? 'bg-primary/10 border-primary/30 shadow-lg shadow-primary/5' 
+                      : 'bg-white/5 border-white/10'
+                  }`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-bold text-sm text-white">{schedule.title}</h3>
+                        <p className="text-[10px] text-white/40 mt-1">
+                          {new Date(schedule.date).toLocaleDateString('zh-TW', { month: 'long', day: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                        isVerySoon ? 'bg-primary text-white' : 'bg-white/10 text-white/60'
+                      }`}>
+                        {diffDays === 0 ? '今天' : diffDays < 0 ? '已過期' : `${diffDays} 天後`}
+                      </div>
+                    </div>
+                    {isVerySoon && (
+                      <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-primary animate-pulse">
+                        <span className="material-symbols-outlined text-[14px]">info</span>
+                        日程即將到來，建議複習對象資訊
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {isEditing ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-[#1c1f27]/40 backdrop-blur-xl border border-white/5 rounded-[32px] p-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">個人封面照片</label>
+              <div 
+                onClick={() => document.getElementById('card-image-input').click()}
+                className="relative w-full aspect-[16/10] bg-[#1c1f27] rounded-[32px] overflow-hidden border border-white/10 group cursor-pointer hover:border-primary/50 transition-all shadow-2xl"
+              >
+                {editForm.cardImage ? (
+                  <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${editForm.cardImage})` }}>
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="material-symbols-outlined text-white text-3xl">photo_camera</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/20">
+                    <span className="material-symbols-outlined text-4xl">add_a_photo</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">點擊上傳封面</span>
+                  </div>
+                )}
+                <input 
+                  id="card-image-input"
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => handleFileChange(e, 'cardImage')}
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">姓名</label>
               <input 
@@ -255,7 +351,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">個人簡介 (IG Style Bio)</label>
               <textarea 
-                className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner h-28 resize-none no-scrollbar"
+                className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner h-28"
                 placeholder="輸入簡短的自我介紹..."
                 value={editForm.bio}
                 onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
@@ -278,9 +374,9 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
               </div>
               <div className="space-y-2">
                 {editForm.links.map((link, idx) => (
-                  <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-right-4 duration-300">
+                  <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-right-2 duration-300">
                     <input 
-                      className="w-24 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
+                      className="w-24 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all shrink-0"
                       placeholder="名稱 (IG)"
                       value={link.label}
                       onChange={(e) => {
@@ -290,7 +386,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                       }}
                     />
                     <input 
-                      className="flex-1 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
+                      className="flex-1 min-w-0 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
                       placeholder="網址 (https://...)"
                       value={link.url}
                       onChange={(e) => {
@@ -299,7 +395,10 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                         setEditForm({...editForm, links: newLinks});
                       }}
                     />
-                    <button onClick={() => setEditForm({...editForm, links: editForm.links.filter((_, i) => i !== idx)})} className="size-10 rounded-xl bg-red-400/5 text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all flex items-center justify-center">
+                    <button 
+                      onClick={() => setEditForm({...editForm, links: editForm.links.filter((_, i) => i !== idx)})} 
+                      className="size-10 rounded-xl bg-red-400/5 text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all flex items-center justify-center shrink-0"
+                    >
                       <span className="material-symbols-outlined text-[18px]">delete</span>
                     </button>
                   </div>
@@ -311,15 +410,29 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
               <div className="flex justify-between items-center px-1">
                 <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">相簿 / 照片牆</label>
                 <button 
-                  onClick={() => {
-                    const url = window.prompt('輸入照片網址:');
-                    if (url) setEditForm({...editForm, gallery: [...editForm.gallery, url]});
-                  }}
+                  onClick={() => document.getElementById('gallery-upload-input').click()}
                   className="text-primary text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 hover:opacity-80 transition-all"
                 >
                   <span className="material-symbols-outlined text-xs">add_photo_alternate</span>
                   新增照片
                 </button>
+                <input 
+                  id="gallery-upload-input"
+                  type="file" 
+                  accept="image/*" 
+                  multiple 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files);
+                    files.forEach(file => {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setEditForm(prev => ({...prev, gallery: [...prev.gallery, reader.result]}));
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                  }}
+                />
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {editForm.gallery.map((img, idx) => (
@@ -334,10 +447,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                   </div>
                 ))}
                 <button 
-                  onClick={() => {
-                    const url = window.prompt('輸入照片網址:');
-                    if (url) setEditForm({...editForm, gallery: [...editForm.gallery, url]});
-                  }}
+                  onClick={() => document.getElementById('gallery-upload-input').click()}
                   className="aspect-square rounded-xl border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-white/10 hover:text-white/20 hover:border-white/10 transition-all"
                 >
                   <span className="material-symbols-outlined text-2xl">add</span>
@@ -348,7 +458,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">背景資訊 / 備註</label>
               <textarea 
-                className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[13px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner h-28 resize-none no-scrollbar"
+                className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[13px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner h-28"
                 placeholder="輸入職稱、公司、興趣或其他備註..."
                 value={editForm.ocrText}
                 onChange={(e) => setEditForm({...editForm, ocrText: e.target.value})}
@@ -372,10 +482,10 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
               
               <div className="space-y-2">
                 {editForm.events.map((ev, idx) => (
-                  <div key={idx} className="flex gap-2 items-start animate-in slide-in-from-right-2 duration-200">
+                  <div key={idx} className="flex gap-2 items-center animate-in slide-in-from-right-2 duration-200">
                     <input 
                       type="date"
-                      className="bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all color-scheme-dark w-36"
+                      className="bg-[#1c1f27] border border-white/10 rounded-xl px-3 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all color-scheme-dark w-32 shrink-0"
                       value={ev.date}
                       onChange={(e) => {
                         const newEvents = [...editForm.events];
@@ -384,7 +494,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                       }}
                     />
                     <input 
-                      className="flex-1 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
+                      className="flex-1 min-w-0 bg-[#1c1f27] border border-white/10 rounded-xl px-4 py-3 text-[13px] text-white focus:ring-1 ring-primary/50 outline-none transition-all"
                       placeholder="事件名稱"
                       value={ev.title}
                       onChange={(e) => {
