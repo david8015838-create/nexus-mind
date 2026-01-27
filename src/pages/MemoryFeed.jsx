@@ -1,23 +1,42 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Tesseract from 'tesseract.js';
+import { QRCodeSVG } from 'qrcode.react';
 import { useNexus } from '../context/NexusContext';
 
 const MemoryFeed = () => {
   const navigate = useNavigate();
-  const { contacts, addContact, updateContact, addMemory, userProfile, updateProfile, customPrompt, schedules } = useNexus();
+  const { contacts, addContact, updateContact, addMemory, userProfile, updateProfile, customPrompt, schedules, currentUser } = useNexus();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+
+  const shareUrl = useMemo(() => {
+    if (!currentUser) return `${window.location.origin}/nexus-mind/`;
+    return `${window.location.origin}/nexus-mind/p/${currentUser.uid}`;
+  }, [currentUser]);
 
   // Guide Steps Data
   const guideSteps = [
     {
       icon: 'auto_awesome_motion',
       title: '社交情報鏈',
-      desc: '這是您的核心社交中樞。系統會按時間順序排列所有聯動動態，並在最上方提醒即將到來的行程。',
+      desc: '這是您的核心社交中樞。系統會按時間順序排列所有聯絡動態，並在最上方提醒即將到來的行程。',
       color: 'text-primary'
+    },
+    {
+      icon: 'qr_code_2',
+      title: '智慧名片分享',
+      desc: '點擊左上角 QR 圖標。登入後可產生個人專屬名片 QR Code，讓他人掃描後直接查看您的公開檔案。',
+      color: 'text-amber-400'
+    },
+    {
+      icon: 'hub',
+      title: '關係圖譜視覺化',
+      desc: '在底部導航點擊圖譜圖標。一眼看出哪些人屬於同一個社交圈，幫助您快速複習圈子背景資訊。',
+      color: 'text-indigo-400'
     },
     {
       icon: 'search',
@@ -27,14 +46,14 @@ const MemoryFeed = () => {
     },
     {
       icon: 'calendar_month',
-      title: '重要日程與規劃',
-      desc: '在「日程」分頁，您可以安排新行程，系統會自動同步至相關人的檔案中。',
+      title: '社交冷卻與日程',
+      desc: '在「日程」分頁，您可以安排行程，系統會根據互動頻率提示「社交冷卻」名單，提醒您主動聯絡。',
       color: 'text-emerald-400'
     },
     {
       icon: 'cloud_sync',
-      title: '雲端同步',
-      desc: '前往「設定」登入 Google 帳號，即可將所有本地資料備份至 Firebase 雲端，多端同步。',
+      title: '100% 雲端同步',
+      desc: '前往「設定」登入 Google。支援分批鏡像備份與新設備自動還原，更換手機資料也絕不遺失。',
       color: 'text-blue-400'
     }
   ];
@@ -64,6 +83,8 @@ const MemoryFeed = () => {
   const [newPhone, setNewPhone] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
+  const [syncStatus, setSyncStatus] = useState('synced'); // 'syncing', 'synced', 'offline'
+  const [isRecording, setIsRecording] = useState(false);
 
   const categories = useMemo(() => {
     return userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要'];
