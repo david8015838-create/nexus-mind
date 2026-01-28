@@ -168,8 +168,17 @@ const MemoryFeed = () => {
       const base64Data = base64String.split(',')[1];
 
       // 2. 初始化 Gemini AI
+      console.log("Starting Gemini OCR with model: gemini-1.5-flash");
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+      
+      // 嘗試使用 gemini-1.5-flash，如果失敗則自動切換
+      let model;
+      try {
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      } catch (e) {
+        console.warn("Failed to init gemini-1.5-flash, trying gemini-3-flash-preview");
+        model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+      }
 
       const prompt = `
         你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
@@ -190,6 +199,7 @@ const MemoryFeed = () => {
         4. 只回傳 JSON 格式，不要有任何其他文字說明。
       `;
 
+      console.log("Sending request to Gemini...");
       const result = await model.generateContent([
         prompt,
         {
@@ -201,12 +211,13 @@ const MemoryFeed = () => {
       ]);
 
       const response = await result.response;
-      let text = response.text();
+      const text = response.text();
+      console.log("Gemini Raw Response:", text);
       
       // 清理可能的 Markdown 標記
-      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-      
-      const data = JSON.parse(text);
+      const cleanJson = text.replace(/```json|```/g, '').trim();
+      const data = JSON.parse(cleanJson);
+      console.log("Parsed OCR Data:", data);
 
       // 3. 儲存聯絡人
       const newContactId = await addContact({
@@ -231,16 +242,23 @@ const MemoryFeed = () => {
       if (navigator.vibrate) navigator.vibrate(50);
       navigate(`/profile/${newContactId}`);
     } catch (error) {
-      console.error('Gemini OCR failed:', error);
+      console.error('Gemini OCR Detailed Error:', error);
+      console.error('Error Stack:', error.stack);
+      
       let errorMsg = '辨識失敗，請確認網路連線正常。';
-      if (error.message?.includes('429')) {
-        errorMsg = 'API 額度已達上限，請稍後再試。';
-      } else if (error.message?.includes('403') || error.message?.includes('401')) {
-        errorMsg = 'API Key 無效或無權限，請檢查設定。';
-      } else if (error.message?.includes('404')) {
-        errorMsg = '找不到指定的 AI 模型，請聯繫開發者。';
+      const errorContent = error.message + (error.stack || '');
+      
+      if (errorContent.includes('429')) {
+        errorMsg = 'API 額度已達上限（Too Many Requests），請稍後再試。';
+      } else if (errorContent.includes('403') || errorContent.includes('401')) {
+        errorMsg = 'API Key 無效或權限被拒（403 Forbidden），請檢查設定。';
+      } else if (errorContent.includes('404')) {
+        errorMsg = '模型不存在或不支援此地區（404 Not Found）。';
+      } else if (errorContent.includes('fetch')) {
+        errorMsg = '網路請求失敗，請檢查您的網路連線或代理伺服器。';
       }
-      alert(errorMsg);
+      
+      alert(`${errorMsg}\n\n錯誤詳情：${error.message.substring(0, 100)}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
