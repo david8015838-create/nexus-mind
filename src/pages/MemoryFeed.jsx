@@ -210,14 +210,15 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用最穩定且支援多模態的系列模型
-      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-8b"];
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-1.5-pro"];
       let lastError = null;
       let data = null;
 
       for (const modelName of modelNames) {
         try {
           console.log(`Trying model: ${modelName} with standard payload...`);
-          const model = genAI.getGenerativeModel({ model: modelName });
+          // 確保模型名稱不帶多餘空格
+          const model = genAI.getGenerativeModel({ model: modelName.trim() });
           
           const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
 
