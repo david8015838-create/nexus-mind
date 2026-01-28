@@ -4,7 +4,7 @@ import { useNexus } from '../context/NexusContext';
 import { useNavigate } from 'react-router-dom';
 
 const RelationshipGraph = () => {
-  const { contacts, userProfile } = useNexus();
+  const { contacts, userProfile, updateContactPosition } = useNexus();
   const navigate = useNavigate();
   const graphRef = useRef();
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -44,13 +44,21 @@ const RelationshipGraph = () => {
         nodeColor = '#a78bfa'; // 紫色
       }
 
-      return {
+      const node = {
         id: c.id,
         name: c.name,
         val: (c.importance || 50) / 2, // 縮小一點節點
         tags: c.tags || [],
         color: nodeColor
       };
+
+      // 恢復儲存的位置
+      if (c.position) {
+        node.fx = c.position.x;
+        node.fy = c.position.y;
+      }
+
+      return node;
     });
 
     const links = [];
@@ -139,6 +147,7 @@ const RelationshipGraph = () => {
           onNodeDragEnd={node => {
             node.fx = node.x;
             node.fy = node.y;
+            updateContactPosition(node.id, { x: node.x, y: node.y });
           }}
           enableNodeDrag={true}
           cooldownTicks={100}
@@ -151,6 +160,24 @@ const RelationshipGraph = () => {
             if (forceName === 'link') {
               force.distance(50); // 縮短連線距離，讓同類別更緊湊
             }
+          }}
+          linkCanvasObject={(link, ctx, globalScale) => {
+            // 檢查節點距離，如果太遠則不畫線
+            const MAX_DISTANCE = 250;
+            const dx = link.target.x - link.source.x;
+            const dy = link.target.y - link.source.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > MAX_DISTANCE) return;
+
+            // 畫連線
+            const fontSize = 10 / globalScale;
+            ctx.beginPath();
+            ctx.strokeStyle = link.color;
+            ctx.lineWidth = link.value / globalScale;
+            ctx.moveTo(link.source.x, link.source.y);
+            ctx.lineTo(link.target.x, link.target.y);
+            ctx.stroke();
           }}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.name;

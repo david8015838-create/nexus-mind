@@ -271,8 +271,13 @@ export const NexusProvider = ({ children }) => {
   };
 
   const updateContact = async (id, updates) => {
+    setUnsavedChanges(true);
     await db.contacts.update(id, { ...updates, lastUpdated: new Date() });
     if (currentUser) syncToCloud().catch(console.error);
+  };
+
+  const updateContactPosition = async (id, position) => {
+    return await db.contacts.update(id, { position });
   };
 
   const updateProfile = async (updates) => {
@@ -361,7 +366,8 @@ export const NexusProvider = ({ children }) => {
       currentContactId,
       setCurrentContactId,
       userProfile,
-      updateProfile,
+      updateContactPosition,
+    updateProfile,
       publishProfile,
       addContact,
       updateContact,

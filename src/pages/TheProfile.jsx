@@ -344,7 +344,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                 <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">生日</label>
                 <input 
                   type="date"
-                  className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner color-scheme-dark"
+                  className="w-1/2 bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-3 text-white text-[14px] font-medium focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner color-scheme-dark"
                   value={editForm.birthday}
                   onChange={(e) => setEditForm({...editForm, birthday: e.target.value})}
                 />

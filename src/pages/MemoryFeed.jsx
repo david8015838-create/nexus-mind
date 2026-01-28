@@ -322,7 +322,7 @@ const MemoryFeed = () => {
         tags: ['OCR 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: `透過名片掃描新增。${extractedCompany ? `公司：${extractedCompany}。` : ''}${extractedTitle ? `職稱：${extractedTitle}。` : ''}OCR 原始內容：${ocrText.slice(0, 150).replace(/\n/g, ' ')}...`, 
+          content: `透過名片掃描新增。${extractedName ? `姓名：${extractedName}。` : ''}${extractedCompany ? `公司：${extractedCompany}。` : ''}${extractedPhone ? `電話：${extractedPhone}。` : ''}${extractedEmail ? `Email：${extractedEmail}。` : ''}`, 
           location: '名片掃描' 
         }],
         importance: 50,
@@ -819,7 +819,7 @@ const MemoryFeed = () => {
                   </div>
                   <input 
                     type="date"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white text-[14px] focus:ring-1 ring-primary outline-none transition-all color-scheme-dark"
+                    className="w-1/2 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-white text-[13px] focus:ring-1 ring-primary outline-none transition-all color-scheme-dark"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
                   />
