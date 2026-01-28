@@ -210,7 +210,7 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用使用者指定的最新系列模型 (2026)
-      // 說明：全面嘗試不同的模型名稱格式（帶 models/ 或 gemini/ 前綴）
+      // 優先使用 Flash 模型以提升速度
       const modelNames = [
         "gemini-3-flash-preview", 
         "gemini-2.5-flash", 
@@ -236,12 +236,13 @@ const MemoryFeed = () => {
             
             const model = genAI.getGenerativeModel({ model: modelId.trim() });
             
-            const ocrPrompt = `你是一個專業的名片辨識系統。請精確提取圖片中的聯絡資訊並回傳 JSON。
-規範如下：
-1. 僅回傳 JSON，不要包含 Markdown 標籤或任何解釋文字。
-2. summary 欄位請保持極簡（15字以內），僅描述「[姓名] 是 [公司] 的 [職稱]」。
-3. 姓名、電話、Email 必須準確，不要包含多餘的標籤字眼（如 "call", "mail"）。
-4. JSON 結構：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡短摘要"}`;
+            const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
+規範：
+1. 僅提取名片上的原始資訊，禁止添加任何額外的背景知識、英文翻譯或頭銜（如 KaneChen 等）。
+2. 僅回傳純 JSON，不含 Markdown 標籤或解釋。
+3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。
+4. 排除所有標籤字眼（如 "call", "mail", "business"）。
+JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
 
             const result = await model.generateContent([
               ocrPrompt,
