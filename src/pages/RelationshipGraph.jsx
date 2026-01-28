@@ -26,76 +26,103 @@ const RelationshipGraph = () => {
   const graphData = useMemo(() => {
     if (!contacts) return { nodes: [], links: [] };
 
-    // 根據選擇的標籤過濾聯絡人
+    const nodes = [];
+    const links = [];
+    const categoryNodeMap = new Map();
+
+    // 1. 根據選擇的標籤過濾聯絡人
     const filteredContacts = filterTag === '全部' 
       ? contacts 
       : contacts.filter(c => (c.tags || []).includes(filterTag));
 
-    const nodes = filteredContacts.map(c => {
-      // 根據分類分配顏色
-      let nodeColor = '#10b981'; // 預設綠色 (普通)
-      if (c.importance > 80 || (c.tags || []).includes('重要')) {
-        nodeColor = '#fbbf24'; // 金色 (重要)
-      } else if ((c.tags || []).includes('家人')) {
-        nodeColor = '#f87171'; // 紅色
-      } else if ((c.tags || []).includes('同事')) {
-        nodeColor = '#60a5fa'; // 藍色
-      } else if ((c.tags || []).includes('朋友')) {
-        nodeColor = '#a78bfa'; // 紫色
-      }
+    // 2. 建立分類節點 (Hubs)
+    // 只有在「全部」模式下才顯示分類中心點，或者顯示目前過濾的分類
+    const activeCategories = filterTag === '全部' 
+      ? categories.filter(c => c !== '全部')
+      : [filterTag];
 
-      const node = {
+    activeCategories.forEach(cat => {
+      const catId = `cat-${cat}`;
+      let catColor = '#ffffff20';
+      if (cat === '重要') catColor = '#fbbf24';
+      else if (cat === '家人') catColor = '#f87171';
+      else if (cat === '同事') catColor = '#60a5fa';
+      else if (cat === '朋友') catColor = '#a78bfa';
+
+      const catNode = {
+        id: catId,
+        name: cat,
+        isCategory: true,
+        val: 15, // 分類節點大一點
+        color: catColor
+      };
+      nodes.push(catNode);
+      categoryNodeMap.set(cat, catNode);
+    });
+
+    // 3. 建立聯絡人節點
+    filteredContacts.forEach(c => {
+      let nodeColor = '#10b981';
+      if (c.importance > 80 || (c.tags || []).includes('重要')) nodeColor = '#fbbf24';
+      else if ((c.tags || []).includes('家人')) nodeColor = '#f87171';
+      else if ((c.tags || []).includes('同事')) nodeColor = '#60a5fa';
+      else if ((c.tags || []).includes('朋友')) nodeColor = '#a78bfa';
+
+      const contactNode = {
         id: c.id,
         name: c.name,
-        val: (c.importance || 50) / 2, // 縮小一點節點
+        val: (c.importance || 50) / 4 + 5,
         tags: c.tags || [],
-        color: nodeColor
+        color: nodeColor,
+        isContact: true,
+        avatar: c.avatar
       };
 
       // 恢復儲存的位置
       if (c.position) {
-        node.fx = c.position.x;
-        node.fy = c.position.y;
+        contactNode.fx = c.position.x;
+        contactNode.fy = c.position.y;
       }
 
-      return node;
+      nodes.push(contactNode);
+
+      // 4. 建立聯絡人與分類的連線 (Hub & Spoke)
+      // 這解決了 N-to-N 連線造成的混亂，改為 N-to-1
+      (c.tags || []).forEach(tag => {
+        if (categoryNodeMap.has(tag)) {
+          links.push({
+            source: contactNode.id,
+            target: `cat-${tag}`,
+            value: 1,
+            color: 'rgba(255, 255, 255, 0.05)',
+            isHubLink: true
+          });
+        }
+      });
     });
 
-    const links = [];
-    // 建立連線邏輯：
-    // 1. 如果選取特定分類，只顯示該分類內的關連
-    // 2. 如果選取「全部」，則顯示所有關連，但線條顏色可以區分
+    // 5. 建立聯絡人之間的「直接強連線」 (僅限於共同擁有 2 個以上標籤，或是特別指定的)
     for (let i = 0; i < filteredContacts.length; i++) {
       for (let j = i + 1; j < filteredContacts.length; j++) {
         const c1 = filteredContacts[i];
         const c2 = filteredContacts[j];
-        
-        // 找出共同標籤
         const sharedTags = (c1.tags || []).filter(t => (c2.tags || []).includes(t));
         
-        if (sharedTags.length > 0) {
-          // 決定連線顏色（取第一個共同標籤）
-          const primaryTag = sharedTags[0];
-          let lineColor = 'rgba(255, 255, 255, 0.08)';
-          
-          if (primaryTag === '重要') lineColor = 'rgba(251, 191, 36, 0.2)';
-          else if (primaryTag === '家人') lineColor = 'rgba(248, 113, 113, 0.2)';
-          else if (primaryTag === '同事') lineColor = 'rgba(96, 165, 250, 0.2)';
-          else if (primaryTag === '朋友') lineColor = 'rgba(167, 139, 250, 0.2)';
-
+        // 只有共同標籤大於 1 個，或者其中一個是「重要」時，才建立直接連線
+        if (sharedTags.length > 1 || (sharedTags.length === 1 && sharedTags.includes('重要'))) {
           links.push({
             source: c1.id,
             target: c2.id,
             value: sharedTags.length * 2,
-            color: lineColor,
-            label: sharedTags.join(', ')
+            color: 'rgba(255, 255, 255, 0.1)',
+            isDirectLink: true
           });
         }
       }
     }
 
     return { nodes, links };
-  }, [contacts, filterTag]);
+  }, [contacts, filterTag, categories]);
 
   return (
     <div className="w-full h-full bg-[#0a0a0c] relative overflow-hidden">
@@ -143,7 +170,13 @@ const RelationshipGraph = () => {
           nodeRelSize={4}
           linkColor={link => link.color}
           linkWidth={link => link.value}
-          onNodeClick={(node) => navigate(`/profile/${node.id}`)}
+          onNodeClick={(node) => {
+            if (node.isCategory) {
+              setFilterTag(node.name);
+            } else {
+              navigate(`/profile/${node.id}`);
+            }
+          }}
           onNodeDragEnd={node => {
             node.fx = node.x;
             node.fy = node.y;
@@ -155,10 +188,11 @@ const RelationshipGraph = () => {
           d3VelocityDecay={0.1}
           d3Force={(forceName, force) => {
             if (forceName === 'charge') {
-              force.strength(-150); // 增加節點間的斥力，讓類別更容易分開
+              force.strength(node => node.isCategory ? -1000 : -150); 
             }
             if (forceName === 'link') {
-              force.distance(50); // 縮短連線距離，讓同類別更緊湊
+              force.distance(link => link.isHubLink ? 100 : 50); 
+              force.strength(link => link.isHubLink ? 0.5 : 0.1);
             }
           }}
           linkCanvasObject={(link, ctx, globalScale) => {
@@ -181,23 +215,47 @@ const RelationshipGraph = () => {
           }}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.name;
-            const fontSize = 11 / globalScale;
-            ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
+            const fontSize = node.isCategory ? 14 / globalScale : 11 / globalScale;
+            ctx.font = `${node.isCategory ? '900' : 'bold'} ${fontSize}px "Inter", sans-serif`;
             
-            // Draw node circle
-            ctx.shadowColor = node.color;
-            ctx.shadowBlur = 10 / globalScale;
-            ctx.fillStyle = node.color;
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, 4, 0, 2 * Math.PI, false);
-            ctx.fill();
-            ctx.shadowBlur = 0;
+            if (node.isCategory) {
+              // Draw Category Hub
+              ctx.shadowColor = node.color;
+              ctx.shadowBlur = 20 / globalScale;
+              ctx.fillStyle = node.color;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, 8 / globalScale, 0, 2 * Math.PI, false);
+              ctx.fill();
+              
+              // Glow ring
+              ctx.strokeStyle = node.color;
+              ctx.lineWidth = 2 / globalScale;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, 12 / globalScale, 0, 2 * Math.PI, false);
+              ctx.stroke();
+              ctx.shadowBlur = 0;
 
-            // Draw label
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.fillText(label, node.x, node.y + 10 / globalScale);
+              // Label for Category
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#ffffff';
+              ctx.fillText(label, node.x, node.y);
+            } else {
+              // Draw Contact Node
+              ctx.shadowColor = node.color;
+              ctx.shadowBlur = 10 / globalScale;
+              ctx.fillStyle = node.color;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, 5 / globalScale, 0, 2 * Math.PI, false);
+              ctx.fill();
+              ctx.shadowBlur = 0;
+
+              // Label for Contact
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+              ctx.fillText(label, node.x, node.y + 12 / globalScale);
+            }
           }}
         />
       </div>
