@@ -236,7 +236,12 @@ const MemoryFeed = () => {
             
             const model = genAI.getGenerativeModel({ model: modelId.trim() });
             
-            const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
+            const ocrPrompt = `你是一個專業的名片辨識系統。請精確提取圖片中的聯絡資訊並回傳 JSON。
+規範如下：
+1. 僅回傳 JSON，不要包含 Markdown 標籤或任何解釋文字。
+2. summary 欄位請保持極簡（15字以內），僅描述「[姓名] 是 [公司] 的 [職稱]」。
+3. 姓名、電話、Email 必須準確，不要包含多餘的標籤字眼（如 "call", "mail"）。
+4. JSON 結構：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡短摘要"}`;
 
             const result = await model.generateContent([
               ocrPrompt,
