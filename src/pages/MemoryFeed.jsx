@@ -172,7 +172,7 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
       
       // 直接嘗試多種模型備選方案
-      const modelNames = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-3-flash-preview"];
+      const modelNames = ["gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-3-flash-preview"];
       let lastError = null;
       let data = null;
 
@@ -181,7 +181,7 @@ const MemoryFeed = () => {
           console.log(`Trying model: ${modelName}`);
           const model = genAI.getGenerativeModel({ model: modelName });
           
-          const prompt = `
+          const ocrPrompt = `
             你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
             {
               "name": "姓名",
@@ -196,12 +196,15 @@ const MemoryFeed = () => {
             注意：只回傳 JSON，不要有 Markdown 標籤。如果無法辨識則填空字串。
           `;
 
+          // 確保 mimeType 有值
+          const mimeType = file.type || 'image/jpeg';
+
           const result = await model.generateContent([
-            prompt,
+            ocrPrompt,
             {
               inlineData: {
                 data: base64Data,
-                mimeType: file.type
+                mimeType: mimeType
               }
             }
           ]);
@@ -217,7 +220,11 @@ const MemoryFeed = () => {
         } catch (e) {
           console.warn(`Model ${modelName} failed:`, e.message);
           lastError = e;
-          // 如果是網路請求失敗（fetch 錯誤），切換模型通常沒用，但還是嘗試下一個
+          
+          // 如果是 429 錯誤，稍微等待一下再試下一個模型
+          if (e.message?.includes('429')) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
       }
 
@@ -258,6 +265,8 @@ const MemoryFeed = () => {
         errorMsg = 'API Key 無效或權限被拒（403 Forbidden），請檢查設定。';
       } else if (errorContent.includes('404')) {
         errorMsg = '模型不存在或不支援此地區（404 Not Found）。';
+      } else if (errorContent.includes('400')) {
+        errorMsg = '請求格式錯誤（400 Bad Request）。這可能是因為圖片檔案太大、格式不支援，或是 Prompt 內容有誤。';
       } else if (errorContent.includes('fetch')) {
         errorMsg = '網路請求失敗。這通常是因為 Google API 被您的網路環境（如公司防火牆或 VPN）阻擋，或者 API 網址不正確。';
       }
