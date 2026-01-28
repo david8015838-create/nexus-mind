@@ -210,13 +210,17 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用最穩定且支援多模態的系列模型
-      // 說明：根據 2026 年最新資訊與使用者回饋，優化模型清單與嘗試邏輯
+      // 說明：全面嘗試所有可能的模型名稱，包括 2.5 系列、2.0 系列與 1.5 系列
       const modelNames = [
-        "gemini-1.5-flash",        // 最穩定且支援最廣
-        "gemini-2.5-flash",        // 最新版 (2026)
-        "gemini-2.0-flash-exp",    // 實驗版
-        "gemini-1.5-pro",          // 高階版
-        "gemini-1.5-flash-8b"      // 輕量版
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-preview-09-25",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash-8b"
       ];
       let lastError = null;
       let data = null;
@@ -226,13 +230,14 @@ const MemoryFeed = () => {
       for (const modelName of modelNames) {
         try {
           triedModels.push(modelName);
-          console.log(`Attempting OCR with model: ${modelName}...`);
+          console.log(`🚀 正在嘗試調用模型: ${modelName}...`);
           
-          // 移除手動添加的 models/ 前綴，讓 SDK 自行處理
+          // 使用 SDK 初始化模型，不帶任何前綴，讓 SDK 根據版本自行處理
           const model = genAI.getGenerativeModel({ model: modelName.trim() });
           
           const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
 
+          // 設定超時與請求參數
           const result = await model.generateContent([
             ocrPrompt,
             {
@@ -245,24 +250,26 @@ const MemoryFeed = () => {
 
           const response = await result.response;
           rawText = response.text();
-          console.log(`${modelName} Success! Response:`, rawText);
           
-          const cleanJson = rawText.replace(/```json|```/g, '').trim();
-          data = JSON.parse(cleanJson);
-          break; 
+          if (rawText) {
+            console.log(`✅ 模型 ${modelName} 調用成功！`);
+            const cleanJson = rawText.replace(/```json|```/g, '').trim();
+            data = JSON.parse(cleanJson);
+            break; 
+          }
         } catch (e) {
-          console.error(`Model ${modelName} failed:`, e.message);
+          console.warn(`❌ 模型 ${modelName} 失敗:`, e.message);
           lastError = e;
-          // 如果是 429 則等待，如果是 404 或其他則立即嘗試下一個
+          // 429 稍微等待，其餘錯誤（如 404）立即嘗試下一個
           if (e.message?.includes('429')) {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
       }
 
       if (!data) {
-        const errorDetails = `嘗試過的模型: ${triedModels.join(', ')}\n最後錯誤: ${lastError?.message}`;
-        throw new Error(errorDetails);
+        const errorMsg = `所有模型嘗試均失敗。\n嘗試清單: ${triedModels.join(', ')}\n最後一個錯誤: ${lastError?.message}`;
+        throw new Error(errorMsg);
       }
 
       // 3. 儲存聯絡人
