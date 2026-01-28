@@ -321,9 +321,17 @@ export const NexusProvider = ({ children }) => {
         updatedAt: new Date().toISOString() // 使用 ISO 字串確保相容性
       };
       
-      console.log("Publishing profile to Firestore...", publicData);
+      console.log("Attempting to write to Firestore: public_profiles/" + currentUser.uid);
       await setDoc(publicRef, publicData);
-      console.log("Profile published successfully!");
+      console.log("Write operation completed!");
+      
+      // 立即驗證寫入是否成功
+      const verifySnap = await getDoc(publicRef);
+      if (verifySnap.exists()) {
+        console.log("Verification success: Document exists in Firestore!");
+      } else {
+        console.error("Verification failed: Document still not found after write!");
+      }
       
       return currentUser.uid;
     } catch (error) {

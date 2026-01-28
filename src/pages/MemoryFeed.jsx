@@ -209,8 +209,8 @@ const MemoryFeed = () => {
       
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // 僅使用最穩定且支援多模態的 1.5 系列模型
-      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-latest"];
+      // 僅使用最穩定且支援多模態的系列模型
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-pro-vision"];
       let lastError = null;
       let data = null;
 
