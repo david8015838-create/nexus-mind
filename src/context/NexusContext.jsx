@@ -94,19 +94,31 @@ export const NexusProvider = ({ children }) => {
       };
 
       const userDocRef = doc(firestore, 'users', currentUser.uid);
+      console.log("Attempting to write profile to:", userDocRef.path);
       await setDoc(userDocRef, { 
         profile: deepSerialize(profile), 
         lastSynced: new Date().toISOString(),
         email: currentUser.email || '' 
       }, { merge: true });
+      console.log("Profile sync successful");
 
       // Helper for batch processing with mirroring
       const commitInBatches = async (collectionName, dataArray) => {
         const colRef = collection(firestore, 'users', currentUser.uid, collectionName);
+        console.log(`Syncing ${collectionName}, items: ${dataArray.length}`);
         
         // 1. Get existing docs to identify what to delete (Mirroring)
-        const existingDocs = await getDocs(colRef);
-        const existingIds = existingDocs.docs.map(doc => doc.id);
+        let existingIds = [];
+        try {
+          const existingDocs = await getDocs(colRef);
+          existingIds = existingDocs.docs.map(doc => doc.id);
+        } catch (e) {
+          console.error(`Error fetching existing ${collectionName}:`, e);
+          if (e.code === 'permission-denied') {
+            throw new Error(`讀取雲端 ${collectionName} 失敗：權限不足`);
+          }
+          throw e;
+        }
         const currentIds = dataArray.map(item => item.id).filter(Boolean);
         const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
 
@@ -149,10 +161,10 @@ export const NexusProvider = ({ children }) => {
     } catch (error) {
       console.error("Sync Error Detailed:", error);
       // Re-throw with a cleaner message if it's a known firebase error
-      if (error.code === 'permission-denied') {
-        throw new Error('權限不足，請重新登入再試');
+      if (error.code === 'permission-denied' || error.message.includes('permission-denied')) {
+        throw new Error('雲端權限不足。請確保您已登入正確帳號，且 Firebase Rules 已允許讀寫。');
       }
-      throw error;
+      throw new Error(`同步失敗: ${error.message}`);
     } finally {
       setIsSyncing(false);
     }
