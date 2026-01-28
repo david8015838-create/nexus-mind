@@ -176,9 +176,9 @@ const SettingsPage = () => {
     setIsPublishing(true);
     try {
       const uid = await publishProfile();
-      // 生成分享網址，考慮 GitHub Pages 的子目錄
+      // 生成分享網址，使用 HashRouter 格式
       const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '').replace(/\/settings$/, '');
-      const url = `${baseUrl}/p/${uid}`;
+      const url = `${baseUrl}/#/p/${uid}`;
       setShareUrl(url);
       setShowShareModal(true);
     } catch (error) {

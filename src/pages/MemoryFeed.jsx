@@ -15,9 +15,9 @@ const MemoryFeed = () => {
 
   const shareUrl = useMemo(() => {
     if (!currentUser) return null;
-    // 使用 HashRouter 風格或確保路徑正確
+    // 使用 HashRouter 風格，確保 GitHub Pages 掃描後不會 404
     const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
-    return `${baseUrl}/p/${currentUser.uid}`;
+    return `${baseUrl}/#/p/${currentUser.uid}`;
   }, [currentUser]);
 
   // Guide Steps Data
@@ -203,24 +203,31 @@ const MemoryFeed = () => {
 
       // 3. 提取電話 (深度優化台灣格式)
       const phoneKeywords = ['行動', '手機', 'TEL', 'Mobile', '行動電話', 'M', 'T', 'Cell', 'Phone', '電話'];
+      // 優先尋找包含「行動」或「09」的行
       const phoneLine = rawLines.find(l => {
         const upper = l.toUpperCase().replace(/\s/g, '');
-        return phoneKeywords.some(k => upper.includes(k.toUpperCase())) && /\d/.test(l);
+        return (phoneKeywords.some(k => upper.includes(k.toUpperCase())) || upper.includes('09')) && /\d/.test(l);
       });
       
       if (phoneLine) {
         let cleaned = phoneLine.replace(/[^\d+]/g, '');
+        // 排除郵遞區號 (通常是 806616 這種 6 位數開頭的)
+        if (cleaned.startsWith('806616')) cleaned = cleaned.replace('806616', '');
+        
         if (cleaned.length >= 9) {
           if (cleaned.startsWith('886')) cleaned = '0' + cleaned.slice(3);
           if (cleaned.startsWith('+886')) cleaned = '0' + cleaned.slice(4);
-          extractedPhone = cleaned;
+          // 確保是 09 開頭的手機或 0 開頭的市話
+          if (cleaned.startsWith('0')) {
+            extractedPhone = cleaned;
+          }
         }
       }
 
       if (!extractedPhone) {
         const phonePatterns = [
-          /(?:\+?886|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}/,
-          /(?:\+?886|0)\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/,
+          /09\d{2}[-\s]?\d{3}[-\s]?\d{3}/,
+          /0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/,
           /09\d{8}/
         ];
 
@@ -228,8 +235,6 @@ const MemoryFeed = () => {
           const match = allText.match(pattern);
           if (match) {
             let cleaned = match[0].replace(/[^\d+]/g, '');
-            if (cleaned.startsWith('886')) cleaned = '0' + cleaned.slice(3);
-            if (cleaned.startsWith('+886')) cleaned = '0' + cleaned.slice(4);
             if (cleaned.length >= 9) {
               extractedPhone = cleaned;
               break;
@@ -241,7 +246,7 @@ const MemoryFeed = () => {
       // 4. 定義關鍵字庫
       const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠', '醫院', '診所', '銀行', '控股', '分處', '顧問', '工業', '租賃'];
       const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人', '顧問', '教授', '工程師', 'Team Lead', 'Lead', 'Developer', 'Associate', 'Partner', '合夥人', '副總經理'];
-      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', 'Address', '地址', '統編', '傳真', 'FAX', 'www', 'http', '郵遞區號', 'Tel', 'Email', '網址', 'Website', 'Zip', '統 編', '傳 真'];
+      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', 'Address', '地址', '統編', '傳真', 'FAX', 'www', 'http', '郵遞區號', 'Tel', 'Email', '網址', 'Website', 'Zip', '統 編', '傳 真', '806616'];
 
       // 5. 提取公司與職稱
       const companyCandidates = cleanLines.filter(line => 
@@ -296,8 +301,9 @@ const MemoryFeed = () => {
 
       const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l));
 
-      if (mixedName) extractedName = mixedName;
-      else if (chineseName) extractedName = chineseName;
+      // 優先序：中文姓名 > 混合姓名 > 部分中文 > 英文
+      if (chineseName) extractedName = chineseName;
+      else if (mixedName) extractedName = mixedName;
       else if (partialChineseName) extractedName = partialChineseName.match(/^[\u4e00-\u9fa5]{2,4}/)[0];
       else if (englishName) extractedName = englishName;
       

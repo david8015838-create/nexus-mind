@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import MemoryFeed from './pages/MemoryFeed';
 import SynestheticFinder from './pages/SynestheticFinder';
 import TheProfile from './pages/TheProfile';
@@ -13,7 +13,7 @@ import Layout from './components/Layout';
 function App() {
   return (
     <NexusProvider>
-      <Router basename="/nexus-mind">
+      <Router>
         <Routes>
           <Route path="/p/:uid" element={<PublicProfile />} />
           <Route path="/*" element={
