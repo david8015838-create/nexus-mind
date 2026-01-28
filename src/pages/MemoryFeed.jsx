@@ -241,10 +241,11 @@ const MemoryFeed = () => {
             
             const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
 規範：
-1. 僅提取名片上的原始資訊，禁止添加任何額外的背景知識、英文翻譯或頭銜（如 KaneChen 等）。
-2. 僅回傳純 JSON，不含 Markdown 標籤或解釋。
-3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。必須使用你提取到的【完整原始中文內容】，嚴禁縮寫（例如：不可將「合迪股份有限公司」縮寫為「合迪股份」，不可將「分處副總經理」縮寫為「副總經理」）。
+1. 【絕對禁止】添加名片上沒有的字：禁止添加英文姓名（如 KaneChen）、禁止添加英文頭銜（如 Vice President）、禁止添加任何背景介紹。
+2. 【僅限原始中文】：除了 Email 和網址外，所有欄位必須使用名片上的原始中文。
+3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。必須使用提取到的【完整原始中文內容】，嚴禁縮寫。
 4. 排除所有標籤字眼（如 "call", "mail", "business"）。
+5. 僅回傳純 JSON，不含 Markdown 標籤。
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
 
             const result = await model.generateContent([
