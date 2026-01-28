@@ -9,8 +9,6 @@ const PublicProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [showDebug, setShowDebug] = useState(false);
-
   useEffect(() => {
     const fetchProfile = async () => {
       // 處理 UID，移除可能的前綴或空格
@@ -71,45 +69,17 @@ const PublicProfile = () => {
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen bg-[#030303] flex flex-col items-center justify-center p-6 text-center">
         <span className="material-symbols-outlined text-6xl text-white/10 mb-4">person_off</span>
         <h1 className="text-xl font-bold text-white mb-2">{error || '連結無效'}</h1>
-        <p className="text-sm text-white/40 mb-6">此個人檔案可能已被移除或設定為不公開</p>
+        <p className="text-sm text-white/40 mb-8">此個人檔案可能已被移除或設定為不公開</p>
         
-        {/* 除錯資訊區塊 */}
-        <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-left max-w-md w-full overflow-hidden">
-          <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Diagnostic Tools</p>
-          <div className="space-y-1 text-[11px] font-mono text-white/50 break-all">
-            <p><span className="text-primary/60">UID:</span> {uid || 'None'}</p>
-            <p><span className="text-primary/60">Project:</span> {firestore?.app?.options?.projectId || 'Unknown'}</p>
-            <p><span className="text-primary/60">Auth Domain:</span> {firestore?.app?.options?.authDomain || 'Unknown'}</p>
-            <p><span className="text-primary/60">Path:</span> {window.location.hash}</p>
-            <p><span className="text-primary/60">Gemini Key:</span> {import.meta.env.VITE_GEMINI_API_KEY ? '✅ Detected' : '❌ Missing'}</p>
-            <p><span className="text-primary/60">Status:</span> {error || 'No Error'}</p>
-            <p className="text-red-400 font-bold animate-pulse">⚠️ 請務必開啟無痕模式或清除快取以查看最新修正版！</p>
-            <p><span className="text-primary/60">Build Time:</span> 2026-01-29 00:35 (V6-ULTRA-FAST)</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="mt-2 px-4 py-1 bg-white/10 rounded-full text-xs font-bold hover:bg-white/20 transition-all"
-            >
-              🔄 點此強制刷新頁面
-            </button>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button 
-              onClick={() => window.location.reload()}
-              className="py-2 bg-primary/20 text-primary text-[10px] font-bold rounded-lg hover:bg-primary/30 transition-all"
-            >
-              重新整理
-            </button>
-            <button 
-              onClick={() => window.location.href = '#/'}
-              className="py-2 bg-white/5 text-white/60 text-[10px] font-bold rounded-lg hover:bg-white/10 transition-all"
-            >
-              回首頁
-            </button>
-          </div>
-        </div>
+        <button 
+          onClick={() => window.location.href = '#/'}
+          className="px-8 py-3 bg-primary/10 border border-primary/20 text-primary rounded-2xl font-bold text-sm hover:bg-primary hover:text-white transition-all"
+        >
+          返回首頁
+        </button>
       </div>
     );
   }
@@ -187,31 +157,6 @@ const PublicProfile = () => {
         <footer className="mt-24 flex flex-col items-center gap-6 animate-in fade-in duration-500 delay-300">
           <div className="h-px w-12 bg-white/10 mb-2"></div>
           
-          {/* Debug Toggle for testing */}
-          <button 
-            onClick={() => setShowDebug(!showDebug)}
-            className="text-[10px] text-white/10 hover:text-white/30 transition-colors uppercase tracking-widest font-bold"
-          >
-            {showDebug ? 'Hide Debug Info' : 'Show Debug Info'}
-          </button>
-
-          {showDebug && (
-            <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-left max-w-md w-full overflow-hidden mb-8">
-              <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Diagnostic Tools (Active Mode)</p>
-              <div className="space-y-1 text-[11px] font-mono text-white/50 break-all">
-                <p><span className="text-primary/60">UID:</span> {uid || 'None'}</p>
-                <p><span className="text-primary/60">Build Time:</span> 2026-01-29 01:10 (V8-GEMINI-2.5)</p>
-                <p><span className="text-primary/60">Gemini Key:</span> {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'}</p>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="mt-2 block px-4 py-1 bg-white/10 rounded-full text-xs font-bold hover:bg-white/20 transition-all"
-                >
-                  🔄 強制清除快取並刷新
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="text-center">
             <h3 className="text-lg font-bold text-white/90 mb-2">歡迎使用 Nexus Mind</h3>
             <p className="text-sm text-white/40 mb-6">打造您的專屬社交情報網絡，珍藏每一份記憶。</p>
