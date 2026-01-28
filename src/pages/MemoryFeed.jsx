@@ -207,7 +207,7 @@ const MemoryFeed = () => {
       const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
 
       // 2. 初始化 Gemini AI
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
       keyStatus = apiKey 
         ? `已讀取 (前4碼: ${apiKey.substring(0, 4)}..., 長度: ${apiKey.length})` 
         : "未讀取 (Empty)";
@@ -227,8 +227,8 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 使用更精確且有效的模型名稱
-      const modelNames = ["gemini-1.5-flash", "gemini-1.5-pro"];
+      // 使用使用者指定的模型版本
+      const modelNames = ["gemini-3.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
       let lastError = null;
       let data = null;
       let extractedText = "";
@@ -236,23 +236,20 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
 
       console.log("📡 開始模型嘗試迴圈...");
       for (const baseName of modelNames) {
-        // 優先嘗試直接名稱，這是最標準的用法
-        const formats = [baseName, `models/${baseName}`];
+        // 嘗試多種可能的路徑格式
+        const formats = [baseName, `models/${baseName}`, `gemini/${baseName}`];
         for (const modelId of formats) {
           try {
             triedModels.push(modelId);
             console.log(`🚀 嘗試模型: ${modelId}...`);
             const model = genAI.getGenerativeModel({ model: modelId });
             
-            // 設定 30 秒超時控制（雖然 SDK 本身沒有 timeout 參數，但我們可以透過 Promise.race 模擬）
-            const generatePromise = model.generateContent([
+            const result = await model.generateContent([
               ocrPrompt,
               { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
             ]);
             
-            const result = await generatePromise;
             const response = await result.response;
-            
             if (!response) throw new Error("Empty Response");
             
             extractedText = response.text();
@@ -267,14 +264,13 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
           } catch (e) {
             console.warn(`❌ ${modelId} 失敗:`, e.message);
             lastError = e;
-            // 403 (Forbidden) 通常代表 API Key 權限問題或地區限制
             if (e.message?.includes('403') || e.message?.includes('401')) {
-              console.error("🛑 偵測到權限錯誤，停止嘗試其他格式。");
+              console.error("🛑 偵測到權限錯誤，停止嘗試此模型的其他格式。");
               break;
             }
           }
         }
-        if (data || (lastError?.message?.includes('403'))) break;
+        if (data) break;
       }
 
       if (!data) {
