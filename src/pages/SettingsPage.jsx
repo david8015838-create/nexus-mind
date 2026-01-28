@@ -9,6 +9,7 @@ const SettingsPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState(null); // 'success' | 'error'
   const [shareUrl, setShareUrl] = useState('');
   const [editForm, setEditForm] = useState({
     name: '',
@@ -174,16 +175,19 @@ const SettingsPage = () => {
     }
     
     setIsPublishing(true);
+    setPublishStatus(null);
     try {
       const uid = await publishProfile();
       // 生成分享網址，使用 HashRouter 格式
       const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '').replace(/\/settings$/, '');
       const url = `${baseUrl}/#/p/${uid}`;
       setShareUrl(url);
+      setPublishStatus('success');
       setShowShareModal(true);
     } catch (error) {
-      console.error("Publish Error:", error);
-      alert('發佈失敗，請檢查網路連線');
+      console.error("Share failed:", error);
+      setPublishStatus('error');
+      alert('發佈個人檔案失敗，請檢查網路連線或登入狀態：' + error.message);
     } finally {
       setIsPublishing(false);
     }

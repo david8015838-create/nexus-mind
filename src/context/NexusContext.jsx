@@ -304,22 +304,32 @@ export const NexusProvider = ({ children }) => {
 
   const publishProfile = async () => {
     if (!currentUser) throw new Error('請先登入以發佈個人檔案');
-    const profile = await db.settings.get('userProfile');
-    const publicRef = doc(firestore, 'public_profiles', currentUser.uid);
     
-    // 限制發佈的內容：僅照片、名字、簡介、連結
-    const publicData = {
-      name: profile.name,
-      avatar: profile.avatar,
-      bio: profile.bio,
-      links: profile.links || [],
-      uid: currentUser.uid,
-      updatedAt: new Date()
-    };
-    
-    await setDoc(publicRef, publicData);
-    if (currentUser) syncToCloud().catch(console.error);
-    return currentUser.uid;
+    try {
+      const profile = await db.settings.get('userProfile');
+      if (!profile) throw new Error('找不到個人設定資料');
+
+      const publicRef = doc(firestore, 'public_profiles', currentUser.uid);
+      
+      // 限制發佈的內容：僅照片、名字、簡介、連結
+      const publicData = {
+        name: profile.name || '未命名使用者',
+        avatar: profile.avatar || '',
+        bio: profile.bio || '',
+        links: profile.links || [],
+        uid: currentUser.uid,
+        updatedAt: new Date().toISOString() // 使用 ISO 字串確保相容性
+      };
+      
+      console.log("Publishing profile to Firestore...", publicData);
+      await setDoc(publicRef, publicData);
+      console.log("Profile published successfully!");
+      
+      return currentUser.uid;
+    } catch (error) {
+      console.error("Failed to publish profile:", error);
+      throw error;
+    }
   };
 
   const addMemory = async (contactId, memory) => {

@@ -11,18 +11,28 @@ const PublicProfile = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
+      if (!uid) {
+        setError('無效的連結');
+        setLoading(false);
+        return;
+      }
+      
       try {
+        console.log("Fetching profile for UID:", uid);
         const docRef = doc(firestore, 'public_profiles', uid);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
-          setProfile(docSnap.data());
+          const data = docSnap.data();
+          console.log("Profile data found:", data);
+          setProfile(data);
         } else {
+          console.warn("No such profile document in 'public_profiles' for UID:", uid);
           setError('找不到此個人檔案');
         }
       } catch (err) {
         console.error("Error fetching public profile:", err);
-        setError('載入失敗，請稍後再試');
+        setError('載入失敗：' + (err.message || '未知錯誤'));
       } finally {
         setLoading(false);
       }

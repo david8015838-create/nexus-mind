@@ -274,50 +274,66 @@ const MemoryFeed = () => {
         extractedTitle = extractedTitle.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '').trim();
       }
 
-      // 6. 提取姓名 (最具挑戰性的部分)
-      // 策略：排除已知類別後的短行
-      const nameCandidates = cleanLines.filter(line => {
-        if (line.includes('@') || line.match(/\d{8,}/) || excludeKeywords.some(k => line.includes(k))) return false;
-        if (companyKeywords.some(k => line.includes(k)) && line.length > 8) return false;
-        if (line.includes('區') || line.includes('市') || line.includes('縣') || line.includes('路') || line.includes('號')) return false;
-        if (line.includes('傳真') || line.includes('FAX') || line.includes('電話') || line.includes('TEL') || line.includes('行動')) return false;
-        if (line.length > 15 || line.length < 2) return false;
+      // 6. 提取姓名 (優化策略)
+      const nameCandidates = cleanLines.filter(l => {
+        const clean = l.replace(/\s/g, '');
+        // 排除地址、公司關鍵字、電話、Email、網址
+        if (clean.length < 2 || clean.length > 12) return false;
+        if (companyKeywords.some(k => clean.includes(k))) return false;
+        if (excludeKeywords.some(k => clean.includes(k))) return false;
+        if (clean.includes('@') || clean.includes('www') || clean.includes('http')) return false;
+        if (/\d/.test(clean)) return false;
         return true;
       });
 
-      // 優先尋找：[中文姓名] [英文名]
-      const mixedName = nameCandidates.find(l => 
-        (/^[\u4e00-\u9fa5]{2,4}[\s/|]+[a-zA-Z\s]+$/.test(l)) || 
-        (/^[a-zA-Z\s]+[\s/|]+[\u4e00-\u9fa5]{2,4}$/.test(l))
+      // 優先找 2-4 字的純中文 (姓名常見格式)
+      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l.replace(/\s/g, '')));
+      // 其次找包含職稱關鍵字但長度適中的行 (例如 "經理 陳志鑫")
+      const nameWithTitle = nameCandidates.find(l => 
+        titleKeywords.some(tk => l.includes(tk)) && l.replace(/\s/g, '').length <= 8
       );
-      // 尋找：純中文姓名 (2-4字)，優先排除包含職稱關鍵字的
-      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l) && !titleKeywords.some(tk => l.includes(tk)));
-      
-      // 如果沒找到，放寬限制：尋找「包含」2-4 個中文的行
-      const partialChineseName = nameCandidates.find(l => {
-        const match = l.match(/^[\u4e00-\u9fa5]{2,4}/);
-        return match && !titleKeywords.some(tk => l.includes(tk));
-      });
+      // 再找包含中文的行
+      const mixedName = nameCandidates.find(l => /[\u4e00-\u9fa5]/.test(l));
+      // 再找英文格式 (First Last)
+      const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l.trim()));
 
-      const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l));
-
-      // 優先序：中文姓名 > 混合姓名 > 部分中文 > 英文
-      if (chineseName) extractedName = chineseName;
-      else if (mixedName) extractedName = mixedName;
-      else if (partialChineseName) extractedName = partialChineseName.match(/^[\u4e00-\u9fa5]{2,4}/)[0];
-      else if (englishName) extractedName = englishName;
+      if (chineseName) {
+        extractedName = chineseName.replace(/\s/g, '');
+      } else if (nameWithTitle) {
+        // 移除職稱部分，剩下的就是名字
+        let potentialName = nameWithTitle;
+        titleKeywords.forEach(tk => { potentialName = potentialName.replace(tk, ''); });
+        extractedName = potentialName.replace(/[^\u4e00-\u9fa5a-zA-Z]/g, '').trim();
+      } else if (mixedName) {
+        extractedName = mixedName.replace(/\s/g, '');
+      } else if (englishName) {
+        extractedName = englishName.trim();
+      }
       
-      // 如果還是沒找到姓名，嘗試從 Email 前綴提取
-      if (!extractedName && extractedEmail) {
-        const prefix = extractedEmail.split('@')[0];
-        if (prefix.includes('.') || prefix.includes('_') || prefix.length > 3) {
-          extractedName = prefix.split(/[._]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+      // 救援邏輯：如果姓名辨識結果跟 Email 前綴一樣，通常那是 Email 誤判為姓名
+      if (extractedEmail && extractedName) {
+        const emailPrefix = extractedEmail.split('@')[0].toLowerCase();
+        const cleanExtracted = extractedName.toLowerCase().replace(/\s/g, '');
+        if (cleanExtracted.includes(emailPrefix) || emailPrefix.includes(cleanExtracted)) {
+          // 如果有其他候選者，換一個
+          const fallbackName = nameCandidates.find(l => l !== extractedName && l.length >= 2 && !l.toLowerCase().includes(emailPrefix));
+          if (fallbackName) extractedName = fallbackName;
+          else if (cleanExtracted === emailPrefix) extractedName = ''; 
         }
       }
 
-      // 如果還是沒找到，從剩餘候選中找最短且看起來像名字的
-      if (!extractedName && nameCandidates.length > 0) {
-        extractedName = nameCandidates.sort((a, b) => a.length - b.length)[0];
+      // 如果還是空白，嘗試從全文字中找可能是名字的區塊 (針對特定案例)
+      if (!extractedName || extractedName === '新掃描聯絡人') {
+        // 尋找 2-3 個中文連在一起
+        const pureChineseMatch = allText.match(/[\u4e00-\u9fa5]{2,3}/g);
+        if (pureChineseMatch) {
+          const potentialNames = pureChineseMatch.filter(n => 
+            !companyKeywords.some(k => n.includes(k)) && 
+            !titleKeywords.some(k => n.includes(k)) &&
+            !excludeKeywords.some(k => n.includes(k))
+          );
+          if (potentialNames.length > 0) extractedName = potentialNames[0];
+        }
       }
 
       // 7. 清理姓名
