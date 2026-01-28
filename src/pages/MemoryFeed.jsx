@@ -298,12 +298,12 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         phone: data.phone || '',
         email: data.email || '',
         company: data.company || '',
-        title: data.title || '', // 確保職稱被存入 title 欄位而非 bio
+        title: data.title || '', 
         address: data.address || '',
         website: data.website || '',
         bio: '', // 保持空白，不填入 AI 生成的摘要
         cardImage: base64String,
-        ocrText: extractedText, // 儲存原始 JSON 作為參考
+        ocrText: '', // 移除原始 JSON 的儲存，避免被誤當作備註顯示
         tags: ['AI 掃描'],
         memories: [], // 移除自動建立的空白記憶，讓使用者手動輸入
         importance: 50,

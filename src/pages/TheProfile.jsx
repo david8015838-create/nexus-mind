@@ -629,7 +629,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
           <>
             <h1 className="text-white tracking-tight text-[32px] font-extrabold leading-tight">{contact.name}</h1>
             <p className="text-white/60 text-lg font-medium leading-normal mt-1">
-              {contact.ocrText?.split('\n')[0] || '專業人士'}
+              {contact.title || contact.company || '專業人士'}
             </p>
 
             {/* Contact Details */}
