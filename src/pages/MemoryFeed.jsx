@@ -292,7 +292,7 @@ const MemoryFeed = () => {
       } else if (errorContent.includes('400')) {
         errorMsg = '請求格式錯誤（400 Bad Request）。這可能是因為圖片檔案太大、格式不支援，或是 Prompt 內容有誤。';
       } else if (errorContent.includes('fetch')) {
-        errorMsg = '網路請求失敗。這通常是因為 Google API 被您的網路環境（如公司防火牆或 VPN）阻擋，或者 API 網址不正確。';
+        errorMsg = '網路請求失敗。這通常是因為 Google API (generativelanguage.googleapis.com) 被您的網路環境阻擋。請嘗試：\n1. 切換至 4G/5G 網路\n2. 若有開啟 VPN，請切換節點或關閉後再試\n3. 確認 API Key 是否已正確填寫。';
       }
       
       alert(`${errorMsg}\n\n錯誤詳情：${error.message.substring(0, 150)}`);

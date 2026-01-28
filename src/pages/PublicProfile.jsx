@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { firestore } from '../db/firebase';
 
 const PublicProfile = () => {
@@ -27,13 +27,22 @@ const PublicProfile = () => {
         
         if (docSnap.exists()) {
           const data = docSnap.data();
-          console.log("Profile data found:", data);
+          console.log("Profile data found by ID:", data);
           setProfile(data);
         } else {
-          console.error("FIREBASE_DATA_MISSING: Document not found in 'public_profiles' for UID:", cleanUid);
-          // 輸出當前配置幫助診斷
-          console.log("Firebase Config ProjectID:", firestore.app.options.projectId);
-          setError('找不到此個人檔案');
+          // 備援方案：嘗試通過欄位 uid 查詢
+          console.log("Document ID not found, trying query by field 'uid'...");
+          const q = query(collection(firestore, 'public_profiles'), where('uid', '==', cleanUid));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const data = querySnapshot.docs[0].data();
+            console.log("Profile data found by field query:", data);
+            setProfile(data);
+          } else {
+            console.error("FIREBASE_DATA_MISSING: No document found for UID:", cleanUid);
+            setError('找不到此個人檔案');
+          }
         }
       } catch (err) {
         console.error("FIREBASE_FETCH_ERROR:", err);
@@ -74,7 +83,7 @@ const PublicProfile = () => {
             <p><span className="text-primary/60">Auth Domain:</span> {firestore?.app?.options?.authDomain || 'Unknown'}</p>
             <p><span className="text-primary/60">Path:</span> {window.location.hash}</p>
             <p><span className="text-primary/60">Status:</span> {error || 'No Error'}</p>
-            <p><span className="text-primary/60">Build Time:</span> 2026-01-28 23:15</p>
+            <p><span className="text-primary/60">Build Time:</span> 2026-01-28 23:30</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button 
