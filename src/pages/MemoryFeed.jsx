@@ -169,7 +169,7 @@ const MemoryFeed = () => {
 
       // 2. 初始化 Gemini AI
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
       const prompt = `
         你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
@@ -232,7 +232,15 @@ const MemoryFeed = () => {
       navigate(`/profile/${newContactId}`);
     } catch (error) {
       console.error('Gemini OCR failed:', error);
-      alert('辨識失敗，請確認 API Key 是否正確或網路連線正常。');
+      let errorMsg = '辨識失敗，請確認網路連線正常。';
+      if (error.message?.includes('429')) {
+        errorMsg = 'API 額度已達上限，請稍後再試。';
+      } else if (error.message?.includes('403') || error.message?.includes('401')) {
+        errorMsg = 'API Key 無效或無權限，請檢查設定。';
+      } else if (error.message?.includes('404')) {
+        errorMsg = '找不到指定的 AI 模型，請聯繫開發者。';
+      }
+      alert(errorMsg);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
