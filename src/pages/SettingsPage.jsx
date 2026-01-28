@@ -146,17 +146,24 @@ const SettingsPage = () => {
       } else {
         const currentCats = [...(userProfile.categories || ['朋友', '同事', '家人', '交際', '重要'])];
         currentCats[idx] = newCat;
-        await updateProfile({ ...userProfile, categories: currentCats });
+        await updateProfile({ categories: currentCats });
       }
     }
   };
 
-  const handleDeleteCategory = (idx) => {
-    if (window.confirm(`確定要刪除分類「${editForm.categories[idx]}」嗎？`)) {
-      setEditForm({
-        ...editForm, 
-        categories: editForm.categories.filter((_, i) => i !== idx)
-      });
+  const handleDeleteCategory = async (idx) => {
+    const catToDelete = isEditing ? editForm.categories[idx] : userProfile.categories[idx];
+    if (window.confirm(`確定要刪除分類「${catToDelete}」嗎？`)) {
+      if (isEditing) {
+        setEditForm({
+          ...editForm, 
+          categories: editForm.categories.filter((_, i) => i !== idx)
+        });
+      } else {
+        const currentCats = [...(userProfile.categories || ['朋友', '同事', '家人', '交際', '重要'])];
+        const newCats = currentCats.filter((_, i) => i !== idx);
+        await updateProfile({ categories: newCats });
+      }
     }
   };
 
@@ -447,7 +454,7 @@ const SettingsPage = () => {
             {/* Categories Section */}
             <div className="space-y-4 pt-4 border-t border-white/5">
               <div className="flex justify-between items-center">
-                <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest">自定義分類</h3>
+                <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest">管理社交分類</h3>
                 <button 
                   onClick={handleAddCategory}
                   className="text-primary text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 hover:text-white transition-colors"
@@ -459,50 +466,30 @@ const SettingsPage = () => {
               
               <div className="bg-white/5 rounded-xl p-4 min-h-[100px]">
                 <div className="flex flex-wrap gap-2">
-                  {editForm.categories.map((cat, idx) => (
+                  {(isEditing ? editForm.categories : userProfile.categories).map((cat, idx) => (
                     <div 
                       key={idx} 
-                      className={`group flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full text-[11px] font-bold transition-all border border-transparent ${
-                        isEditing 
-                          ? 'bg-white/10 text-white border-white/10' 
-                          : 'bg-white/5 text-white/60'
-                      }`}
+                      className="group flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full text-[11px] font-bold transition-all border border-white/10 bg-white/5 text-white/80 hover:border-primary/30"
                     >
-                      <span 
-                        onClick={() => isEditing && handleEditCategory(cat, idx)}
-                        className={isEditing ? 'cursor-pointer hover:text-primary transition-colors' : ''}
-                      >
-                        {cat}
-                      </span>
-                      {isEditing && (
-                        <div className="flex items-center gap-1 border-l border-white/10 ml-1 pl-1">
-                          <button 
-                            onClick={() => handleEditCategory(cat, idx)}
-                            className="text-white/40 hover:text-primary transition-all flex items-center p-0.5"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">edit</span>
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteCategory(idx)}
-                            className="text-white/40 hover:text-red-400 transition-all flex items-center p-0.5"
-                          >
-                            <span className="material-symbols-outlined text-[14px]">close</span>
-                          </button>
-                        </div>
-                      )}
+                      <span>{cat}</span>
+                      <div className="flex items-center gap-1 border-l border-white/10 ml-1 pl-1">
+                        <button 
+                          onClick={() => handleEditCategory(cat, idx)}
+                          className="text-white/20 hover:text-primary transition-all flex items-center p-0.5"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">edit</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteCategory(idx)}
+                          className="text-white/20 hover:text-red-400 transition-all flex items-center p-0.5"
+                        >
+                          <span className="material-symbols-outlined text-[14px]">close</span>
+                        </button>
+                      </div>
                     </div>
                   ))}
-                  {isEditing && (
-                     <button 
-                       onClick={handleAddCategory}
-                       className="px-3 py-1.5 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20 border-dashed hover:bg-primary/20 transition-all flex items-center gap-1"
-                     >
-                       <span className="material-symbols-outlined text-[14px]">add</span>
-                       新增
-                     </button>
-                   )}
                 </div>
-                {!isEditing && editForm.categories.length === 0 && (
+                {!(isEditing ? editForm.categories : userProfile.categories).length && (
                   <div className="flex flex-col items-center justify-center py-4 opacity-30">
                      <span className="material-symbols-outlined text-2xl mb-1">category</span>
                      <p className="text-[10px] italic">尚未設定分類</p>

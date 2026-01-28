@@ -273,12 +273,12 @@ const MemoryFeed = () => {
       const nameCandidates = cleanLines.filter(line => {
         if (line.includes('@') || line.match(/\d{8,}/) || excludeKeywords.some(k => line.includes(k))) return false;
         // 排除明顯是公司名稱的行
-        if (companyKeywords.some(k => line.includes(k)) && line.length > 10) return false;
+        if (companyKeywords.some(k => line.includes(k)) && line.length > 8) return false;
         // 排除明顯是地址的行
-        if (line.includes('區') || line.includes('市') || line.includes('縣')) return false;
+        if (line.includes('區') || line.includes('市') || line.includes('縣') || line.includes('路') || line.includes('號')) return false;
         // 排除傳真、電話等關鍵字行
-        if (line.includes('傳真') || line.includes('FAX') || line.includes('電話') || line.includes('TEL')) return false;
-        if (line.length > 25 || line.length < 2) return false;
+        if (line.includes('傳真') || line.includes('FAX') || line.includes('電話') || line.includes('TEL') || line.includes('行動')) return false;
+        if (line.length > 20 || line.length < 2) return false;
         return true;
       });
 
@@ -288,15 +288,25 @@ const MemoryFeed = () => {
         (/^[a-zA-Z\s]+[\s/|]+[\u4e00-\u9fa5]{2,4}$/.test(l))
       );
       // 尋找：純中文姓名 (2-4字)，優先排除包含職稱關鍵字的
-      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l) && !titleKeywords.some(tk => l.includes(tk)));
+      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,3}$/.test(l) && !titleKeywords.some(tk => l.includes(tk)));
       // 尋找：First Last 格式
       const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l));
 
       if (mixedName) extractedName = mixedName;
       else if (chineseName) extractedName = chineseName;
       else if (englishName) extractedName = englishName;
-      else if (nameCandidates.length > 0) {
-        // 針對「陳志鑫」這類情況，如果名字出現在職稱附近，嘗試從較短的候選行中找
+      
+      // 如果還是沒找到姓名，嘗試從 Email 前綴提取
+      if (!extractedName && extractedEmail) {
+        const prefix = extractedEmail.split('@')[0];
+        // 如果前綴包含點或底線，通常是姓名
+        if (prefix.includes('.') || prefix.includes('_') || prefix.length > 3) {
+          extractedName = prefix.split(/[._]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+        }
+      }
+
+      // 如果還是沒找到，從剩餘候選中找最短且看起來像名字的
+      if (!extractedName && nameCandidates.length > 0) {
         extractedName = nameCandidates.sort((a, b) => a.length - b.length)[0];
       }
 
@@ -306,9 +316,21 @@ const MemoryFeed = () => {
         .replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '')
         .trim();
       
-      // 特殊校正：如果名字太長且包含公司關鍵字，截斷它
-      if (extractedName.length > 10 && companyKeywords.some(k => extractedName.includes(k))) {
-        extractedName = extractedName.split(/\s+/)[0].slice(0, 4);
+      // 針對「陳志鑫」的特殊處理：如果包含 OCR 誤認的字元，嘗試清理
+      if (extractedName.length > 5 && /[\u4e00-\u9fa5]/.test(extractedName)) {
+        // 如果是中文名字但太長，可能混入了雜質，取前 3 個字
+        const chineseOnly = extractedName.match(/[\u4e00-\u9fa5]+/g);
+        if (chineseOnly && chineseOnly[0].length >= 2 && chineseOnly[0].length <= 4) {
+          extractedName = chineseOnly[0];
+        }
+      }
+
+      // 8. 公司名稱二次清理
+      if (extractedCompany) {
+        // 如果公司名稱中包含電話，截斷它
+        if (extractedCompany.includes('行動') || extractedCompany.includes('09')) {
+          extractedCompany = extractedCompany.split(/行動|09/)[0].trim();
+        }
       }
 
       const newContactId = await addContact({
@@ -322,7 +344,7 @@ const MemoryFeed = () => {
         tags: ['OCR 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: `透過名片掃描新增。${extractedName ? `姓名：${extractedName}。` : ''}${extractedCompany ? `公司：${extractedCompany}。` : ''}${extractedPhone ? `電話：${extractedPhone}。` : ''}${extractedEmail ? `Email：${extractedEmail}。` : ''}`, 
+          content: `名片掃描新增：${extractedName} (${extractedCompany || '未知公司'})`, 
           location: '名片掃描' 
         }],
         importance: 50,

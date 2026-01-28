@@ -163,7 +163,7 @@ const RelationshipGraph = () => {
           }}
           linkCanvasObject={(link, ctx, globalScale) => {
             // 檢查節點距離，如果太遠則不畫線
-            const MAX_DISTANCE = 250;
+            const MAX_DISTANCE = 150;
             const dx = link.target.x - link.source.x;
             const dy = link.target.y - link.source.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
