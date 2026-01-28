@@ -63,7 +63,23 @@ const PublicProfile = () => {
       <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center">
         <span className="material-symbols-outlined text-6xl text-white/10 mb-4">person_off</span>
         <h1 className="text-xl font-bold text-white mb-2">{error || '連結無效'}</h1>
-        <p className="text-sm text-white/40">此個人檔案可能已被移除或設定為不公開</p>
+        <p className="text-sm text-white/40 mb-6">此個人檔案可能已被移除或設定為不公開</p>
+        
+        {/* 除錯資訊區塊 */}
+        <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-left max-w-md w-full">
+          <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Debug Info</p>
+          <div className="space-y-1 text-[11px] font-mono text-white/50">
+            <p>UID: {uid}</p>
+            <p>URL: {window.location.href}</p>
+            <p>Env: {import.meta.env.MODE}</p>
+          </div>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 w-full py-2 bg-primary/20 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-all"
+          >
+            重新整理
+          </button>
+        </div>
       </div>
     );
   }

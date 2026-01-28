@@ -204,49 +204,38 @@ const MemoryFeed = () => {
 
       // 2. 初始化 Gemini AI
       console.log("Starting Gemini OCR with Compressed Image...");
-      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('找不到 API Key，請檢查 .env 檔案中的 VITE_GEMINI_API_KEY');
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
       
-      // 直接嘗試多種模型備選方案，優化順序
-      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro-vision"];
+      // 改用最基礎且最通用的模型名稱，避免別名問題
+      const modelNames = ["gemini-1.5-flash", "gemini-pro-vision", "gemini-1.5-pro"];
       let lastError = null;
       let data = null;
 
       for (const modelName of modelNames) {
         try {
-          console.log(`Trying model: ${modelName}`);
-          // 針對 gemini 模型使用標準版本或 v1beta
-          const model = genAI.getGenerativeModel({ 
-            model: modelName
-          });
+          console.log(`Trying model: ${modelName} with full payload...`);
+          // 不指定 apiVersion，讓 SDK 自行處理
+          const model = genAI.getGenerativeModel({ model: modelName });
           
-          const ocrPrompt = `
-            你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
-            {
-              "name": "姓名",
-              "phone": "電話 (請統一格式為 09xxxxxxxx 或市話格式)",
-              "email": "電子郵件",
-              "company": "公司名稱",
-              "title": "職稱",
-              "address": "地址",
-              "website": "網址",
-              "summary": "一段簡短的介紹，包含姓名、公司與職稱"
-            }
-            注意：嚴格只回傳 JSON 物件，不要有 Markdown 標籤或任何前導文字。
-          `;
+          const ocrPrompt = `Extract business card info as JSON: {name, phone, email, company, title, address, website, summary}. ONLY JSON.`;
 
-          // 強制使用 image/jpeg 因為我們已經壓縮轉檔了
-          const mimeType = 'image/jpeg';
-
-          const result = await model.generateContent([
-            ocrPrompt,
+          // 嘗試不同的數據封裝方式
+          const contentResult = await model.generateContent([
+            { text: ocrPrompt },
             {
               inlineData: {
                 data: base64Data,
-                mimeType: mimeType
+                mimeType: 'image/jpeg'
               }
             }
           ]);
 
+          const result = contentResult;
           const response = await result.response;
           const text = response.text();
           console.log(`${modelName} Raw Response:`, text);
