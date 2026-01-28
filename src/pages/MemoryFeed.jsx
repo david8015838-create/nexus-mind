@@ -209,18 +209,11 @@ const MemoryFeed = () => {
       
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // 僅使用最穩定且支援多模態的系列模型
-      // 說明：全面嘗試所有可能的模型名稱，包括 2.5 系列、2.0 系列與 1.5 系列
+      // 僅使用使用者指定的最新系列模型 (2026)
       const modelNames = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-preview-09-25",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-pro",
-        "gemini-1.5-flash-8b"
+        "gemini-3-flash-preview", 
+        "gemini-2.5-flash", 
+        "gemini-3-pro-preview"
       ];
       let lastError = null;
       let data = null;
@@ -230,10 +223,11 @@ const MemoryFeed = () => {
       for (const modelName of modelNames) {
         try {
           triedModels.push(modelName);
-          console.log(`🚀 正在嘗試調用模型: ${modelName}...`);
+          console.log(`🚀 正在調用指定模型: ${modelName}...`);
           
-          // 使用 SDK 初始化模型，不帶任何前綴，讓 SDK 根據版本自行處理
-          const model = genAI.getGenerativeModel({ model: modelName.trim() });
+          // 使用 SDK 初始化模型，並嘗試加上 models/ 前綴以解決某些環境下的 404 問題
+          // 如果 models/ 報錯，會自動進入 catch 嘗試下一個模型
+          const model = genAI.getGenerativeModel({ model: `models/${modelName.trim()}` });
           
           const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
 
