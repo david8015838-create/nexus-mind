@@ -11,15 +11,17 @@ const PublicProfile = () => {
 
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!uid) {
+      // 處理 UID，移除可能的前綴或空格
+      const cleanUid = uid?.trim();
+      if (!cleanUid) {
         setError('無效的連結');
         setLoading(false);
         return;
       }
       
       try {
-        console.log("Fetching profile for UID:", uid);
-        const docRef = doc(firestore, 'public_profiles', uid);
+        console.log("Fetching profile for UID:", cleanUid);
+        const docRef = doc(firestore, 'public_profiles', cleanUid);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
@@ -27,10 +29,10 @@ const PublicProfile = () => {
           console.log("Profile data found:", data);
           setProfile(data);
         } else {
-          console.warn("No such profile document in 'public_profiles' for UID:", uid);
-          // 檢查當前 URL 資訊
+          console.warn("No such profile document in 'public_profiles' for UID:", cleanUid);
+          // 嘗試列出該集合中的文檔（僅用於調試）
           console.log("Current window location:", window.location.href);
-          console.log("UID from params:", uid);
+          console.log("Cleaned UID from params:", cleanUid);
           setError('找不到此個人檔案');
         }
       } catch (err) {

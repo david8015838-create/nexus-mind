@@ -165,7 +165,8 @@ const MemoryFeed = () => {
         reader.readAsDataURL(file);
       });
       const base64String = await base64Promise;
-      const base64Data = base64String.split(',')[1];
+      // 移除 Data URL 前綴 (e.g., "data:image/jpeg;base64,")
+      const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
 
       // 2. 初始化 Gemini AI
       console.log("Starting Gemini OCR...");
@@ -179,7 +180,11 @@ const MemoryFeed = () => {
       for (const modelName of modelNames) {
         try {
           console.log(`Trying model: ${modelName}`);
-          const model = genAI.getGenerativeModel({ model: modelName });
+          // 針對 gemini-3-flash-preview 強制使用 v1beta
+          const model = genAI.getGenerativeModel({ 
+            model: modelName,
+            apiVersion: 'v1beta'
+          });
           
           const ocrPrompt = `
             你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
@@ -193,7 +198,7 @@ const MemoryFeed = () => {
               "website": "網址",
               "summary": "一段簡短的介紹，包含姓名、公司與職稱"
             }
-            注意：只回傳 JSON，不要有 Markdown 標籤。如果無法辨識則填空字串。
+            注意：嚴格只回傳 JSON 物件，不要有 Markdown 標籤或任何前導文字。
           `;
 
           // 確保 mimeType 有值
