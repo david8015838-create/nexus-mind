@@ -210,9 +210,10 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用最穩定且支援多模態的系列模型
-      const modelNames = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+      const modelNames = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
       let lastError = null;
       let data = null;
+      let rawText = "";
 
       for (const modelName of modelNames) {
         try {
@@ -234,11 +235,11 @@ const MemoryFeed = () => {
           ]);
 
           const response = await result.response;
-          const text = response.text();
-          console.log(`${modelName} Raw Response:`, text);
+          rawText = response.text();
+          console.log(`${modelName} Raw Response:`, rawText);
           
           // 移除 Markdown 標籤並解析
-          const cleanJson = text.replace(/```json|```/g, '').trim();
+          const cleanJson = rawText.replace(/```json|```/g, '').trim();
           data = JSON.parse(cleanJson);
           break; 
         } catch (e) {
@@ -263,7 +264,7 @@ const MemoryFeed = () => {
         website: data.website || '',
         bio: data.title ? `職稱：${data.title}` : '',
         cardImage: base64String,
-        ocrText: text, // 儲存原始 JSON 作為參考
+        ocrText: rawText, // 儲存原始 JSON 作為參考
         tags: ['AI 掃描'],
         memories: [{ 
           date: new Date(), 
