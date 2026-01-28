@@ -157,10 +157,13 @@ const MemoryFeed = () => {
     if (!file) return;
 
     setIsScanning(true);
+    let keyStatus = "未初始化";
+    let base64String = "";
+    
     try {
       // 1. 圖片壓縮處理
       const compressImage = (file) => {
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(file);
           reader.onload = (event) => {
@@ -190,24 +193,22 @@ const MemoryFeed = () => {
               const ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, width, height);
               
-              // 強制轉為 jpeg 並壓縮品質
               const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
               resolve(dataUrl);
             };
+            img.onerror = () => reject(new Error("圖片載入失敗，請嘗試其他檔案。"));
           };
+          reader.onerror = () => reject(new Error("檔案讀取失敗。"));
         });
       };
 
-      const base64String = await compressImage(file);
-      // 移除 Data URL 前綴
+      console.log("📸 開始處理圖片...");
+      base64String = await compressImage(file);
       const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
 
       // 2. 初始化 Gemini AI
-      console.log("Starting Gemini OCR with Compressed Image...");
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      
-      // 診斷資訊：檢查 Key 的狀態（不洩漏完整金鑰）
-      const keyStatus = apiKey 
+      keyStatus = apiKey 
         ? `已讀取 (前4碼: ${apiKey.substring(0, 4)}..., 長度: ${apiKey.length})` 
         : "未讀取 (Empty)";
       console.log(`🔑 API Key 狀態: ${keyStatus}`);
@@ -226,73 +227,54 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      
-      // 優先使用圖表中顯示成功的 gemini-3 系列
-      const modelNames = [
-        "gemini-3-flash",
-        "gemini-1.5-flash", 
-        "gemini-1.5-pro"
-      ];
+      // 使用更精確且有效的模型名稱
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-pro"];
       let lastError = null;
       let data = null;
       let extractedText = "";
       const triedModels = [];
 
+      console.log("📡 開始模型嘗試迴圈...");
       for (const baseName of modelNames) {
-        // 為每個模型名稱嘗試三種格式
-        const formats = [
-          `models/${baseName}`,
-          `gemini/${baseName}`,
-          baseName
-        ];
-
+        // 優先嘗試直接名稱，這是最標準的用法
+        const formats = [baseName, `models/${baseName}`];
         for (const modelId of formats) {
           try {
             triedModels.push(modelId);
-            console.log(`🚀 正在嘗試調用格式: ${modelId}...`);
+            console.log(`🚀 嘗試模型: ${modelId}...`);
+            const model = genAI.getGenerativeModel({ model: modelId });
             
-            const model = genAI.getGenerativeModel({ model: modelId.trim() });
-            
-            console.log(`📡 正在發送請求至 Gemini (${modelId})...`);
-            const result = await model.generateContent([
+            // 設定 30 秒超時控制（雖然 SDK 本身沒有 timeout 參數，但我們可以透過 Promise.race 模擬）
+            const generatePromise = model.generateContent([
               ocrPrompt,
-              {
-                inlineData: {
-                  data: base64Data,
-                  mimeType: 'image/jpeg'
-                }
-              }
+              { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
             ]);
-
+            
+            const result = await generatePromise;
             const response = await result.response;
-            if (!response) throw new Error("模型未回傳有效回應 (Empty Response)");
             
-            // 使用更穩健的方式獲取文字內容
-            const textResponse = response.text();
-            extractedText = textResponse;
+            if (!response) throw new Error("Empty Response");
             
+            extractedText = response.text();
+            console.log(`📥 ${modelId} 回傳內容長度: ${extractedText?.length || 0}`);
+
             if (extractedText) {
-              console.log(`✅ 模型格式 ${modelId} 調用成功！`);
               const cleanJson = extractedText.replace(/```json|```/g, '').trim();
               data = JSON.parse(cleanJson);
+              console.log(`✅ ${modelId} 解析成功！`);
               break; 
             }
           } catch (e) {
-            console.warn(`❌ 格式 ${modelId} 失敗:`, e.message);
+            console.warn(`❌ ${modelId} 失敗:`, e.message);
             lastError = e;
-            
-            // 如果是 403 或 401，代表 Key 本身有問題或額度用盡，不需要再嘗試其他格式
+            // 403 (Forbidden) 通常代表 API Key 權限問題或地區限制
             if (e.message?.includes('403') || e.message?.includes('401')) {
-              console.error("🛑 偵測到權限錯誤或額度用盡，停止後續嘗試。");
-              break; 
-            }
-
-            if (e.message?.includes('429')) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              console.error("🛑 偵測到權限錯誤，停止嘗試其他格式。");
+              break;
             }
           }
         }
-        if (data || (lastError?.message?.includes('403'))) break; 
+        if (data || (lastError?.message?.includes('403'))) break;
       }
 
       if (!data) {
