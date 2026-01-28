@@ -66,20 +66,29 @@ const PublicProfile = () => {
         <p className="text-sm text-white/40 mb-6">此個人檔案可能已被移除或設定為不公開</p>
         
         {/* 除錯資訊區塊 */}
-        <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-left max-w-md w-full">
-          <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Debug Info</p>
-          <div className="space-y-1 text-[11px] font-mono text-white/50">
-            <p>UID: {uid}</p>
-            <p>Project: {firestore.app.options.projectId}</p>
-            <p>URL: {window.location.href}</p>
-            <p>Env: {import.meta.env.MODE}</p>
+        <div className="bg-white/5 p-4 rounded-xl border border-white/10 text-left max-w-md w-full overflow-hidden">
+          <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Diagnostic Tools</p>
+          <div className="space-y-1 text-[11px] font-mono text-white/50 break-all">
+            <p><span className="text-primary/60">UID:</span> {uid || 'None'}</p>
+            <p><span className="text-primary/60">Project:</span> {firestore?.app?.options?.projectId || 'Unknown'}</p>
+            <p><span className="text-primary/60">Auth Domain:</span> {firestore?.app?.options?.authDomain || 'Unknown'}</p>
+            <p><span className="text-primary/60">Path:</span> {window.location.hash}</p>
+            <p><span className="text-primary/60">Status:</span> {error || 'No Error'}</p>
           </div>
-          <button 
-            onClick={() => window.location.reload()}
-            className="mt-4 w-full py-2 bg-primary/20 text-primary text-xs font-bold rounded-lg hover:bg-primary/30 transition-all"
-          >
-            重新整理
-          </button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button 
+              onClick={() => window.location.reload()}
+              className="py-2 bg-primary/20 text-primary text-[10px] font-bold rounded-lg hover:bg-primary/30 transition-all"
+            >
+              重新整理
+            </button>
+            <button 
+              onClick={() => window.location.href = '#/'}
+              className="py-2 bg-white/5 text-white/60 text-[10px] font-bold rounded-lg hover:bg-white/10 transition-all"
+            >
+              回首頁
+            </button>
+          </div>
         </div>
       </div>
     );

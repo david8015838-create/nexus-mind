@@ -243,10 +243,11 @@ const MemoryFeed = () => {
           data = JSON.parse(cleanJson);
           break; 
         } catch (e) {
-          console.error(`Model ${modelName} failed error object:`, e);
+          console.error(`Model ${modelName} failed. Error Details:`, e);
+          console.error(`Error Message:`, e.message);
           lastError = e;
           if (e.message?.includes('429')) {
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, 2000));
           }
         }
       }
