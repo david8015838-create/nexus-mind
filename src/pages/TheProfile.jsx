@@ -45,11 +45,11 @@ const TheProfile = () => {
     setEditForm({
       name: contact.name,
       company: contact.company || '',
+      title: contact.title || '',
       birthday: contact.birthday || '',
       phone: contact.phone || '',
       email: contact.email || '',
       tags: contact.tags?.join(', ') || '',
-      ocrText: contact.ocrText || '',
       events: contact.events || [],
       bio: contact.bio || '',
       links: contact.links || [],
@@ -64,11 +64,11 @@ const TheProfile = () => {
     await updateContact(id, {
       name: editForm.name,
       company: editForm.company,
+      title: editForm.title,
       birthday: editForm.birthday || null,
       phone: editForm.phone,
       email: editForm.email,
       tags: editForm.tags.split(',').map(t => t.trim()).filter(t => t),
-      ocrText: editForm.ocrText,
       events: editForm.events,
       bio: editForm.bio,
       links: editForm.links,
@@ -548,12 +548,23 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
             </div>
 
             <div className="space-y-2">
+              <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">職稱</label>
+              <input 
+                type="text"
+                className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[15px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner"
+                placeholder="例如：分處副總經理"
+                value={editForm.title}
+                onChange={(e) => setEditForm({...editForm, title: e.target.value})}
+              />
+            </div>
+
+            <div className="space-y-2">
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">背景資訊 / 備註</label>
               <textarea 
                 className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-5 py-4 text-white text-[13px] font-medium placeholder:text-white/20 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner h-28"
-                placeholder="輸入職稱、公司、興趣或其他備註..."
-                value={editForm.ocrText}
-                onChange={(e) => setEditForm({...editForm, ocrText: e.target.value})}
+                placeholder="輸入興趣或其他備註..."
+                value={editForm.bio}
+                onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
               />
             </div>
 
