@@ -210,28 +210,29 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用最穩定且支援多模態的系列模型
-      // 說明：根據 2026 年最新資訊，優先使用 Gemini 2.5 系列
+      // 說明：根據 2026 年最新資訊與使用者回饋，優化模型清單與嘗試邏輯
       const modelNames = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-preview-09-25",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro"
+        "gemini-1.5-flash",        // 最穩定且支援最廣
+        "gemini-2.5-flash",        // 最新版 (2026)
+        "gemini-2.0-flash-exp",    // 實驗版
+        "gemini-1.5-pro",          // 高階版
+        "gemini-1.5-flash-8b"      // 輕量版
       ];
       let lastError = null;
       let data = null;
       let rawText = "";
+      const triedModels = [];
 
       for (const modelName of modelNames) {
         try {
-          console.log(`Trying model: models/${modelName} with standard payload...`);
-          // 強制加上 models/ 前綴以確保 API 識別正確
-          const model = genAI.getGenerativeModel({ model: `models/${modelName.trim()}` });
+          triedModels.push(modelName);
+          console.log(`Attempting OCR with model: ${modelName}...`);
+          
+          // 移除手動添加的 models/ 前綴，讓 SDK 自行處理
+          const model = genAI.getGenerativeModel({ model: modelName.trim() });
           
           const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
 
-          // 使用最標準的 SDK 調用格式
           const result = await model.generateContent([
             ocrPrompt,
             {
@@ -244,23 +245,25 @@ const MemoryFeed = () => {
 
           const response = await result.response;
           rawText = response.text();
-          console.log(`${modelName} Raw Response:`, rawText);
+          console.log(`${modelName} Success! Response:`, rawText);
           
-          // 移除 Markdown 標籤並解析
           const cleanJson = rawText.replace(/```json|```/g, '').trim();
           data = JSON.parse(cleanJson);
           break; 
         } catch (e) {
-          console.error(`Model ${modelName} failed. Error Details:`, e);
-          console.error(`Error Message:`, e.message);
+          console.error(`Model ${modelName} failed:`, e.message);
           lastError = e;
+          // 如果是 429 則等待，如果是 404 或其他則立即嘗試下一個
           if (e.message?.includes('429')) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
           }
         }
       }
 
-      if (!data) throw lastError;
+      if (!data) {
+        const errorDetails = `嘗試過的模型: ${triedModels.join(', ')}\n最後錯誤: ${lastError?.message}`;
+        throw new Error(errorDetails);
+      }
 
       // 3. 儲存聯絡人
       const newContactId = await addContact({
