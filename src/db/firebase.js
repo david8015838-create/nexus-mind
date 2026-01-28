@@ -4,13 +4,13 @@ import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyAC3NrbNayY3xqNPyAQxLhDNiXN0hgPgDA',
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'nexus-mind-c32cf.firebaseapp.com',
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'nexus-mind-c32cf',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'nexus-mind-c32cf.firebasestorage.app',
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '875586424699',
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:875586424699:web:fd086d034f584277ebb7de',
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-8MBZWJRWK6'
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Validate config

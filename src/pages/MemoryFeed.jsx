@@ -204,8 +204,11 @@ const MemoryFeed = () => {
 
       // 2. 初始化 Gemini AI
       console.log("Starting Gemini OCR with Compressed Image...");
-      // 優先使用環境變數，若無則使用硬編碼 fallback (解決 GitHub Pages 部署時看不到 .env 的問題)
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyC-MX9W4HF6HEjOoYv9Sf9RfBWUIyJVmv8';
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      
+      if (!apiKey) {
+        throw new Error("找不到 API Key，請檢查 .env 檔案中的 VITE_GEMINI_API_KEY");
+      }
       
       const genAI = new GoogleGenerativeAI(apiKey);
       
