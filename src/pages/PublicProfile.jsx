@@ -200,7 +200,7 @@ const PublicProfile = () => {
               <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Diagnostic Tools (Active Mode)</p>
               <div className="space-y-1 text-[11px] font-mono text-white/50 break-all">
                 <p><span className="text-primary/60">UID:</span> {uid || 'None'}</p>
-                <p><span className="text-primary/60">Build Time:</span> 2026-01-29 01:00 (V7-PERF-FIX)</p>
+                <p><span className="text-primary/60">Build Time:</span> 2026-01-29 01:10 (V8-GEMINI-2.5)</p>
                 <p><span className="text-primary/60">Gemini Key:</span> {import.meta.env.VITE_GEMINI_API_KEY ? '✅' : '❌'}</p>
                 <button 
                   onClick={() => window.location.reload()}
