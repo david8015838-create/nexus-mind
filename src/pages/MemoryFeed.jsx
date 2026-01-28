@@ -158,32 +158,65 @@ const MemoryFeed = () => {
 
     setIsScanning(true);
     try {
-      // 1. 將圖片轉為 Base64
-      const reader = new FileReader();
-      const base64Promise = new Promise((resolve) => {
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(file);
-      });
-      const base64String = await base64Promise;
-      // 移除 Data URL 前綴 (e.g., "data:image/jpeg;base64,")
+      // 1. 圖片壓縮處理
+      const compressImage = (file) => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(file);
+          reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 1200;
+              const MAX_HEIGHT = 1200;
+              let width = img.width;
+              let height = img.height;
+
+              if (width > height) {
+                if (width > MAX_WIDTH) {
+                  height *= MAX_WIDTH / width;
+                  width = MAX_WIDTH;
+                }
+              } else {
+                if (height > MAX_HEIGHT) {
+                  width *= MAX_HEIGHT / height;
+                  height = MAX_HEIGHT;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              
+              // 強制轉為 jpeg 並壓縮品質
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+              resolve(dataUrl);
+            };
+          };
+        });
+      };
+
+      const base64String = await compressImage(file);
+      // 移除 Data URL 前綴
       const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
 
       // 2. 初始化 Gemini AI
-      console.log("Starting Gemini OCR...");
+      console.log("Starting Gemini OCR with Compressed Image...");
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
       
-      // 直接嘗試多種模型備選方案
-      const modelNames = ["gemini-flash-latest", "gemini-2.0-flash-lite", "gemini-3-flash-preview"];
+      // 直接嘗試多種模型備選方案，優化順序
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro-vision"];
       let lastError = null;
       let data = null;
 
       for (const modelName of modelNames) {
         try {
           console.log(`Trying model: ${modelName}`);
-          // 針對 gemini-3-flash-preview 強制使用 v1beta
+          // 針對 gemini 模型使用標準版本或 v1beta
           const model = genAI.getGenerativeModel({ 
-            model: modelName,
-            apiVersion: 'v1beta'
+            model: modelName
           });
           
           const ocrPrompt = `
@@ -201,8 +234,8 @@ const MemoryFeed = () => {
             注意：嚴格只回傳 JSON 物件，不要有 Markdown 標籤或任何前導文字。
           `;
 
-          // 確保 mimeType 有值
-          const mimeType = file.type || 'image/jpeg';
+          // 強制使用 image/jpeg 因為我們已經壓縮轉檔了
+          const mimeType = 'image/jpeg';
 
           const result = await model.generateContent([
             ocrPrompt,

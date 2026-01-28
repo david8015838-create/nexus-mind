@@ -21,6 +21,7 @@ const PublicProfile = () => {
       
       try {
         console.log("Fetching profile for UID:", cleanUid);
+        // 使用 collection 查詢而不是直接 doc 引用，有助於排除某些 SDK 路徑解析問題
         const docRef = doc(firestore, 'public_profiles', cleanUid);
         const docSnap = await getDoc(docRef);
         
@@ -29,17 +30,15 @@ const PublicProfile = () => {
           console.log("Profile data found:", data);
           setProfile(data);
         } else {
-          console.warn("No such profile document in 'public_profiles' for UID:", cleanUid);
-          // 嘗試列出該集合中的文檔（僅用於調試）
-          console.log("Current window location:", window.location.href);
-          console.log("Cleaned UID from params:", cleanUid);
+          console.error("FIREBASE_DATA_MISSING: Document not found in 'public_profiles' for UID:", cleanUid);
+          // 輸出當前配置幫助診斷
+          console.log("Firebase Config ProjectID:", firestore.app.options.projectId);
           setError('找不到此個人檔案');
         }
       } catch (err) {
-        console.error("Error fetching public profile:", err);
-        // 如果是權限錯誤，給出更具體的提示
+        console.error("FIREBASE_FETCH_ERROR:", err);
         if (err.code === 'permission-denied') {
-          setError('讀取權限不足，請確認該檔案已設定為公開');
+          setError('權限不足：請確保資料庫 Rules 已設為 allow read。');
         } else {
           setError('載入失敗：' + (err.message || '未知錯誤'));
         }
