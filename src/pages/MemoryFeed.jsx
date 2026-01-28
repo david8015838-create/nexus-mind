@@ -171,11 +171,12 @@ const MemoryFeed = () => {
       const ocrText = result.data.text;
       const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean);
       
-      // --- 進階解析邏輯 (名片實例優化版) ---
+      // --- 進階解析邏輯 (名片實例深度優化版) ---
       // 1. 預處理：清理字元與行分割
       const allText = ocrText.replace(/\r/g, '');
       const rawLines = allText.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
       
+      // 移除干擾字元但保留關鍵符號
       const cleanLines = rawLines.filter(line => {
         const noSymbols = line.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
         return noSymbols.length >= 2;
@@ -192,100 +193,112 @@ const MemoryFeed = () => {
       const emailMatch = allText.match(emailRegex);
       if (emailMatch) extractedEmail = emailMatch[0].toLowerCase();
 
-      // 3. 提取電話 (針對台灣名片優化)
-      // 匹配：886-9xx-xxx-xxx, 09xx xxx xxx, 09xxxxxxxx, 行動：... 等
-      const phonePatterns = [
-        /(?:行動|手機|TEL|Mobile|行動電話|M)[:：\s]?(?:\+?886|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}/i,
-        /(?:\+?886|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}/, // 標準手機格式 (含空格/橫槓)
-        /(?:\+?886|0)\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/, // 市話
-        /886[-\s]?9\d{2}[-\s]?\d{3}[-\s]?\d{3}/ // 無 + 號的 886
-      ];
-
-      for (const pattern of phonePatterns) {
-        const match = allText.match(pattern);
-        if (match) {
-          // 清理非數字字元，但保留可能的 + 號
-          let cleaned = match[0].replace(/[^\d+]/g, '');
-          // 轉換 886 為 0
+      // 3. 提取電話 (深度優化台灣格式)
+      // 策略：先匹配帶關鍵字的行，再匹配純數字格式
+      const phoneKeywords = ['行動', '手機', 'TEL', 'Mobile', '行動電話', 'M', 'T', 'Cell', 'Phone'];
+      const phoneLine = rawLines.find(l => {
+        const upper = l.toUpperCase();
+        return phoneKeywords.some(k => upper.includes(k.toUpperCase())) && /\d/.test(l);
+      });
+      
+      if (phoneLine) {
+        // 從帶關鍵字的行中提取數字與 + 號
+        let cleaned = phoneLine.replace(/[^\d+]/g, '');
+        if (cleaned.length >= 9) {
           if (cleaned.startsWith('886')) cleaned = '0' + cleaned.slice(3);
           if (cleaned.startsWith('+886')) cleaned = '0' + cleaned.slice(4);
           extractedPhone = cleaned;
-          break;
         }
       }
 
-      // 4. 定義擴充關鍵字庫
-      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠', '醫院', '診所', '銀行', '控股'];
-      const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人', '顧問', '教授', '工程師', 'Team Lead', 'Lead', '工程師', '分處'];
-      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', 'Address', '地址', '統編', '傳真', 'FAX', 'www', 'http', '郵遞區號', 'Tel', 'Email'];
+      if (!extractedPhone) {
+        // 如果沒找到關鍵字行，則全域匹配
+        const phonePatterns = [
+          /(?:\+?886|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}/, // 手機 0912-345-678
+          /(?:\+?886|0)\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/, // 市話 02-1234-5678
+          /886[-\s]?9\d{2}[-\s]?\d{3}[-\s]?\d{3}/,
+          /09\d{8}/ // 緊湊手機號
+        ];
 
-      // 5. 提取公司名稱 (排除郵遞區號與純地址行)
-      const companyCandidates = cleanLines.filter(line => {
-        const hasKeyword = companyKeywords.some(keyword => line.includes(keyword));
-        const hasExclude = excludeKeywords.some(ex => line.includes(ex));
-        const isPostalCode = /^\d{3,6}/.test(line); // 排除郵遞區號開頭的行
-        return hasKeyword && !hasExclude && !isPostalCode && line.length > 3;
-      });
-      if (companyCandidates.length > 0) {
-        // 優先找包含「控股」、「有限公司」或最長的那行
-        const bestCompany = companyCandidates.find(c => c.includes('控股') || c.includes('有限公司') || c.includes('集團')) || companyCandidates[0];
-        extractedCompany = bestCompany;
-      }
-
-      // 6. 提取職稱
-      const titleCandidates = cleanLines.filter(line => 
-        titleKeywords.some(keyword => line.includes(keyword)) &&
-        line.length < 25 &&
-        !line.includes('@')
-      );
-      if (titleCandidates.length > 0) {
-        extractedTitle = titleCandidates[0];
-      }
-
-      // 7. 提取姓名 (處理中英文並列與純英文)
-      const nameCandidates = cleanLines.filter(line => {
-        if (line.includes('@') || line.match(/\d{8,}/) || excludeKeywords.some(k => line.includes(k))) return false;
-        if (companyKeywords.some(k => line.includes(k)) && line.length > 8) return false;
-        if (line.length > 20) return false;
-        return true;
-      });
-
-      // 優先尋找「中文姓名 + 英文名」或「純中文姓名」
-      const nameWithEnglish = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}\s+[a-zA-Z\s]+$/.test(l));
-      const pureChineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l));
-      
-      if (nameWithEnglish) {
-        extractedName = nameWithEnglish;
-      } else if (pureChineseName) {
-        extractedName = pureChineseName;
-      } else {
-        // 尋找 Show Hu 這種格式的英文名 (通常在職稱上方)
-        const englishName = nameCandidates.find(l => /^[A-Z][a-z]+\s[A-Z][a-z]+$/.test(l));
-        if (englishName) {
-          extractedName = englishName;
-        } else {
-          // 備案：嘗試從包含職稱的行提取
-          const lineWithTitle = nameCandidates.find(l => titleKeywords.some(k => l.includes(k)));
-          if (lineWithTitle) {
-            const title = titleKeywords.find(k => lineWithTitle.includes(k));
-            const namePart = lineWithTitle.split(title)[0].trim();
-            if (namePart.length >= 2) extractedName = namePart;
+        for (const pattern of phonePatterns) {
+          const match = allText.match(pattern);
+          if (match) {
+            let cleaned = match[0].replace(/[^\d+]/g, '');
+            if (cleaned.startsWith('886')) cleaned = '0' + cleaned.slice(3);
+            if (cleaned.startsWith('+886')) cleaned = '0' + cleaned.slice(4);
+            // 排除過短的號碼
+            if (cleaned.length >= 9) {
+              extractedPhone = cleaned;
+              break;
+            }
           }
         }
       }
 
-      // 如果還是找不到，取第一條不包含關鍵字的短行
-      if (!extractedName) {
-        const fallback = nameCandidates.find(l => 
-          l.length >= 2 && l.length <= 12 && 
-          !companyKeywords.some(k => l.includes(k)) &&
-          !titleKeywords.some(k => l.includes(k))
-        );
-        extractedName = fallback || '新掃描聯絡人';
+      // 4. 定義關鍵字庫
+      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠', '醫院', '診所', '銀行', '控股', '分處', '顧問', '工業'];
+      const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人', '顧問', '教授', '工程師', 'Team Lead', 'Lead', 'Developer', 'Associate', 'Partner', '合夥人'];
+      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', 'Address', '地址', '統編', '傳真', 'FAX', 'www', 'http', '郵遞區號', 'Tel', 'Email', '網址', 'Website', 'Zip'];
+
+      // 5. 提取公司與職稱
+      const companyCandidates = cleanLines.filter(line => 
+        companyKeywords.some(keyword => line.includes(keyword)) && 
+        !excludeKeywords.some(ex => line.includes(ex)) &&
+        !/^\d{3,6}/.test(line) &&
+        line.length > 3
+      );
+      if (companyCandidates.length > 0) {
+        // 優先選擇較長的行（通常包含完整公司名稱）
+        extractedCompany = companyCandidates.sort((a, b) => b.length - a.length)[0];
       }
 
-      // 8. 最終清理
-      extractedName = extractedName.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '').trim();
+      const titleCandidates = cleanLines.filter(line => 
+        titleKeywords.some(keyword => line.toUpperCase().includes(keyword.toUpperCase())) &&
+        line.length < 40 && !line.includes('@') && !line.includes('.')
+      );
+      if (titleCandidates.length > 0) {
+        // 優先找不包含公司名稱的行作為職稱
+        extractedTitle = titleCandidates.find(t => !companyKeywords.some(ck => t.includes(ck))) || titleCandidates[0];
+      }
+
+      // 6. 提取姓名 (最具挑戰性的部分)
+      // 策略：排除已知類別後的短行，優先找中英並列
+      const nameCandidates = cleanLines.filter(line => {
+        if (line.includes('@') || line.match(/\d{8,}/) || excludeKeywords.some(k => line.includes(k))) return false;
+        // 排除明顯是公司名稱的行
+        if (companyKeywords.some(k => line.includes(k)) && line.length > 10) return false;
+        // 排除明顯是地址的行
+        if (line.includes('區') || line.includes('市') || line.includes('縣')) return false;
+        if (line.length > 25 || line.length < 2) return false;
+        return true;
+      });
+
+      // 優先尋找：[中文姓名] [英文名] (如：柯岱均 Danny) 或 [英文名] [中文姓名]
+      const mixedName = nameCandidates.find(l => 
+        (/^[\u4e00-\u9fa5]{2,4}[\s/|]+[a-zA-Z\s]+$/.test(l)) || 
+        (/^[a-zA-Z\s]+[\s/|]+[\u4e00-\u9fa5]{2,4}$/.test(l))
+      );
+      // 尋找：純中文姓名 (2-4字)
+      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l));
+      // 尋找：First Last 格式
+      const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l));
+
+      if (mixedName) extractedName = mixedName;
+      else if (chineseName) extractedName = chineseName;
+      else if (englishName) extractedName = englishName;
+      else if (nameCandidates.length > 0) {
+        // 如果沒有明顯格式，取第一條排除公司與職稱的短行
+        extractedName = nameCandidates.find(l => 
+          !titleKeywords.some(tk => l.includes(tk)) && 
+          !companyKeywords.some(ck => l.includes(ck))
+        ) || nameCandidates[0];
+      }
+
+      // 7. 清理姓名：移除標點符號，保留中英文
+      extractedName = (extractedName || '新掃描聯絡人')
+        .replace(/[|/\\_-]/g, ' ') // 移除常見分隔符
+        .replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '')
+        .trim();
 
       const newContactId = await addContact({
         name: extractedName,
@@ -787,21 +800,27 @@ const MemoryFeed = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">發生日期</label>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="material-symbols-outlined text-primary text-base">event</span>
+                    <label className="text-[11px] font-bold text-white/40 uppercase tracking-widest">發生日期</label>
+                  </div>
                   <input 
                     type="date"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-3.5 text-white text-xs focus:ring-1 ring-primary outline-none transition-all color-scheme-dark"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white text-[14px] focus:ring-1 ring-primary outline-none transition-all color-scheme-dark"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">聯絡電話</label>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="material-symbols-outlined text-primary text-base">call</span>
+                    <label className="text-[11px] font-bold text-white/40 uppercase tracking-widest">聯絡電話</label>
+                  </div>
                   <input 
                     type="tel"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-3.5 text-white text-xs focus:ring-1 ring-primary outline-none transition-all placeholder:text-white/20"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-4 text-white text-[14px] focus:ring-1 ring-primary outline-none transition-all placeholder:text-white/20"
                     placeholder="選填"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}

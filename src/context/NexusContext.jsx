@@ -67,17 +67,36 @@ export const NexusProvider = ({ children }) => {
   };
 
   const syncToCloud = async () => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      console.error("Sync Error: No user logged in");
+      return;
+    }
     setIsSyncing(true);
     try {
       const allContacts = await db.contacts.toArray();
       const allSchedules = await db.schedules.toArray();
       const profile = (await db.settings.get('userProfile')) || {};
       
+      // Helper for deep serialization (Handles Dates, undefined, and nested objects)
+      const deepSerialize = (obj) => {
+        if (obj === null || obj === undefined) return null; // Firestore doesn't like undefined
+        if (obj instanceof Date) return obj.toISOString();
+        if (Array.isArray(obj)) return obj.map(item => deepSerialize(item));
+        if (typeof obj === 'object') {
+          return Object.entries(obj).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+              acc[key] = deepSerialize(value);
+            }
+            return acc;
+          }, {});
+        }
+        return obj;
+      };
+
       const userDocRef = doc(firestore, 'users', currentUser.uid);
       await setDoc(userDocRef, { 
-        profile, 
-        lastSynced: new Date(),
+        profile: deepSerialize(profile), 
+        lastSynced: new Date().toISOString(),
         email: currentUser.email || '' 
       }, { merge: true });
 
@@ -110,19 +129,7 @@ export const NexusProvider = ({ children }) => {
         for (const item of dataArray) {
           if (!item.id) continue;
           
-          // Better serialization: Handle Dates and remove undefined
-          const serializedItem = Object.entries(item).reduce((acc, [key, value]) => {
-            if (value === undefined) return acc;
-            if (value instanceof Date) {
-              acc[key] = value.toISOString();
-            } else if (Array.isArray(value)) {
-              acc[key] = value.map(v => (v instanceof Date ? v.toISOString() : v));
-            } else {
-              acc[key] = value;
-            }
-            return acc;
-          }, {});
-
+          const serializedItem = deepSerialize(item);
           batch.set(doc(colRef, item.id), serializedItem);
           count++;
           if (count === 500) {
@@ -140,7 +147,11 @@ export const NexusProvider = ({ children }) => {
 
       console.log("Synced to cloud successfully (Mirror Mode)");
     } catch (error) {
-      console.error("Sync Error:", error);
+      console.error("Sync Error Detailed:", error);
+      // Re-throw with a cleaner message if it's a known firebase error
+      if (error.code === 'permission-denied') {
+        throw new Error('權限不足，請重新登入再試');
+      }
       throw error;
     } finally {
       setIsSyncing(false);
