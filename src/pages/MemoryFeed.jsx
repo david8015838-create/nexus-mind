@@ -221,7 +221,7 @@ const MemoryFeed = () => {
           console.log(`Trying model: ${modelName} with standard payload...`);
           const model = genAI.getGenerativeModel({ model: modelName });
           
-          const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳資訊：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}。注意：嚴格只回傳 JSON，不要有 Markdown 標籤。`;
+          const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
 
           // 使用最標準的 SDK 調用格式
           const result = await model.generateContent([
