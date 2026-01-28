@@ -82,8 +82,9 @@ const PublicProfile = () => {
             <p><span className="text-primary/60">Project:</span> {firestore?.app?.options?.projectId || 'Unknown'}</p>
             <p><span className="text-primary/60">Auth Domain:</span> {firestore?.app?.options?.authDomain || 'Unknown'}</p>
             <p><span className="text-primary/60">Path:</span> {window.location.hash}</p>
+            <p><span className="text-primary/60">Gemini Key:</span> {import.meta.env.VITE_GEMINI_API_KEY ? '✅ Detected' : '❌ Missing'}</p>
             <p><span className="text-primary/60">Status:</span> {error || 'No Error'}</p>
-            <p><span className="text-primary/60">Build Time:</span> 2026-01-28 23:30</p>
+            <p><span className="text-primary/60">Build Time:</span> 2026-01-28 23:45</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button 
