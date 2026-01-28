@@ -84,7 +84,7 @@ const PublicProfile = () => {
             <p><span className="text-primary/60">Path:</span> {window.location.hash}</p>
             <p><span className="text-primary/60">Gemini Key:</span> {import.meta.env.VITE_GEMINI_API_KEY ? '✅ Detected' : '❌ Missing'}</p>
             <p><span className="text-primary/60">Status:</span> {error || 'No Error'}</p>
-            <p><span className="text-primary/60">Build Time:</span> 2026-01-29 00:05 (V4)</p>
+            <p><span className="text-primary/60">Build Time:</span> 2026-01-29 00:20 (V5-FINAL)</p>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button 
@@ -106,11 +106,11 @@ const PublicProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-primary/30">
+    <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-primary/30 overflow-x-hidden">
       {/* Background Mesh */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-50">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 blur-[120px] rounded-full"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 blur-[120px] rounded-full"></div>
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-40">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 blur-[100px] rounded-full"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/5 blur-[100px] rounded-full"></div>
       </div>
 
       <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none"></div>
@@ -119,15 +119,15 @@ const PublicProfile = () => {
         {/* Profile Header */}
         <div className="flex flex-col items-center text-center mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <div className="relative mb-8 group">
-            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full group-hover:bg-primary/40 transition-all duration-700 scale-110"></div>
+            <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full group-hover:bg-primary/40 transition-all duration-700 scale-110 pointer-events-none"></div>
             {profile.avatar ? (
               <img 
                 src={profile.avatar} 
-                className="relative size-32 rounded-full object-cover border-4 border-white/10 shadow-2xl"
+                className="relative size-32 rounded-full object-cover border-4 border-white/10 shadow-2xl pointer-events-none"
                 alt={profile.name}
               />
             ) : (
-              <div className="relative size-32 rounded-full bg-gradient-to-br from-white/10 to-white/5 border-4 border-white/10 flex items-center justify-center shadow-2xl">
+              <div className="relative size-32 rounded-full bg-gradient-to-br from-white/10 to-white/5 border-4 border-white/10 flex items-center justify-center shadow-2xl pointer-events-none">
                 <span className="material-symbols-outlined text-5xl text-white/20">person</span>
               </div>
             )}
