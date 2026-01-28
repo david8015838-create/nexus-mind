@@ -228,7 +228,13 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       
       const genAI = new GoogleGenerativeAI(apiKey);
       // 使用使用者指定的模型版本
-      const modelNames = ["gemini-3.0-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+      const modelNames = [
+        "gemini-2.0-flash-exp", 
+        "gemini-1.5-flash", 
+        "gemini-1.5-pro",
+        "gemini-3.0-flash", 
+        "gemini-2.5-flash"
+      ];
       let lastError = null;
       let data = null;
       let extractedText = "";
@@ -237,17 +243,24 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       console.log("📡 開始模型嘗試迴圈...");
       for (const baseName of modelNames) {
         // 嘗試多種可能的路徑格式
-        const formats = [baseName, `models/${baseName}`, `gemini/${baseName}`];
+        const formats = [baseName, `models/${baseName}`];
         for (const modelId of formats) {
           try {
             triedModels.push(modelId);
             console.log(`🚀 嘗試模型: ${modelId}...`);
             const model = genAI.getGenerativeModel({ model: modelId });
             
-            const result = await model.generateContent([
+            // 加入 30 秒超時控制
+            const resultPromise = model.generateContent([
               ocrPrompt,
               { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
             ]);
+
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error("Request Timeout (30s)")), 30000)
+            );
+
+            const result = await Promise.race([resultPromise, timeoutPromise]);
             
             const response = await result.response;
             if (!response) throw new Error("Empty Response");
@@ -264,8 +277,9 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
           } catch (e) {
             console.warn(`❌ ${modelId} 失敗:`, e.message);
             lastError = e;
-            if (e.message?.includes('403') || e.message?.includes('401')) {
-              console.error("🛑 偵測到權限錯誤，停止嘗試此模型的其他格式。");
+            // 如果是 404 (模型不存在) 或 403 (權限錯誤)，直接跳過該系列
+            if (e.message?.includes('404') || e.message?.includes('403') || e.message?.includes('401')) {
+              console.error(`🛑 偵測到嚴重錯誤 (${e.message})，跳過此模型。`);
               break;
             }
           }
