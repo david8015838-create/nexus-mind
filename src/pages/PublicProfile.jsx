@@ -70,6 +70,7 @@ const PublicProfile = () => {
           <p className="text-[10px] font-mono text-white/30 uppercase mb-2">Debug Info</p>
           <div className="space-y-1 text-[11px] font-mono text-white/50">
             <p>UID: {uid}</p>
+            <p>Project: {firestore.app.options.projectId}</p>
             <p>URL: {window.location.href}</p>
             <p>Env: {import.meta.env.MODE}</p>
           </div>

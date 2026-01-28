@@ -211,22 +211,21 @@ const MemoryFeed = () => {
 
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // 改用最基礎且最通用的模型名稱，避免別名問題
-      const modelNames = ["gemini-1.5-flash", "gemini-pro-vision", "gemini-1.5-pro"];
+      // 僅使用最穩定且支援多模態的 1.5 系列模型
+      const modelNames = ["gemini-1.5-flash", "gemini-1.5-flash-latest"];
       let lastError = null;
       let data = null;
 
       for (const modelName of modelNames) {
         try {
-          console.log(`Trying model: ${modelName} with full payload...`);
-          // 不指定 apiVersion，讓 SDK 自行處理
+          console.log(`Trying model: ${modelName} with standard payload...`);
           const model = genAI.getGenerativeModel({ model: modelName });
           
-          const ocrPrompt = `Extract business card info as JSON: {name, phone, email, company, title, address, website, summary}. ONLY JSON.`;
+          const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳資訊：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}。注意：嚴格只回傳 JSON，不要有 Markdown 標籤。`;
 
-          // 嘗試不同的數據封裝方式
-          const contentResult = await model.generateContent([
-            { text: ocrPrompt },
+          // 使用最標準的 SDK 調用格式
+          const result = await model.generateContent([
+            ocrPrompt,
             {
               inlineData: {
                 data: base64Data,
@@ -235,22 +234,19 @@ const MemoryFeed = () => {
             }
           ]);
 
-          const result = contentResult;
           const response = await result.response;
           const text = response.text();
           console.log(`${modelName} Raw Response:`, text);
           
+          // 移除 Markdown 標籤並解析
           const cleanJson = text.replace(/```json|```/g, '').trim();
           data = JSON.parse(cleanJson);
-          console.log(`${modelName} Parsed Data:`, data);
-          break; // 成功則跳出迴圈
+          break; 
         } catch (e) {
-          console.warn(`Model ${modelName} failed:`, e.message);
+          console.error(`Model ${modelName} failed error object:`, e);
           lastError = e;
-          
-          // 如果是 429 錯誤，稍微等待一下再試下一個模型
           if (e.message?.includes('429')) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
           }
         }
       }
