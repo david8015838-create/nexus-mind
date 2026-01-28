@@ -168,56 +168,60 @@ const MemoryFeed = () => {
       const base64Data = base64String.split(',')[1];
 
       // 2. 初始化 Gemini AI
-      console.log("Starting Gemini OCR with model: gemini-1.5-flash");
+      console.log("Starting Gemini OCR...");
       const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
       
-      // 嘗試使用 gemini-1.5-flash，如果失敗則自動切換
-      let model;
-      try {
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      } catch (e) {
-        console.warn("Failed to init gemini-1.5-flash, trying gemini-3-flash-preview");
-        model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
+      // 直接嘗試多種模型備選方案
+      const modelNames = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-3-flash-preview"];
+      let lastError = null;
+      let data = null;
+
+      for (const modelName of modelNames) {
+        try {
+          console.log(`Trying model: ${modelName}`);
+          const model = genAI.getGenerativeModel({ model: modelName });
+          
+          const prompt = `
+            你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
+            {
+              "name": "姓名",
+              "phone": "電話 (請統一格式為 09xxxxxxxx 或市話格式)",
+              "email": "電子郵件",
+              "company": "公司名稱",
+              "title": "職稱",
+              "address": "地址",
+              "website": "網址",
+              "summary": "一段簡短的介紹，包含姓名、公司與職稱"
+            }
+            注意：只回傳 JSON，不要有 Markdown 標籤。如果無法辨識則填空字串。
+          `;
+
+          const result = await model.generateContent([
+            prompt,
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: file.type
+              }
+            }
+          ]);
+
+          const response = await result.response;
+          const text = response.text();
+          console.log(`${modelName} Raw Response:`, text);
+          
+          const cleanJson = text.replace(/```json|```/g, '').trim();
+          data = JSON.parse(cleanJson);
+          console.log(`${modelName} Parsed Data:`, data);
+          break; // 成功則跳出迴圈
+        } catch (e) {
+          console.warn(`Model ${modelName} failed:`, e.message);
+          lastError = e;
+          // 如果是網路請求失敗（fetch 錯誤），切換模型通常沒用，但還是嘗試下一個
+        }
       }
 
-      const prompt = `
-        你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
-        {
-          "name": "姓名",
-          "phone": "電話 (請統一格式為 09xxxxxxxx 或市話格式)",
-          "email": "電子郵件",
-          "company": "公司名稱",
-          "title": "職稱",
-          "address": "地址",
-          "website": "網址",
-          "summary": "一段簡短的介紹，包含姓名、公司與職稱"
-        }
-        注意：
-        1. 如果某個欄位無法辨識，請填入空字串。
-        2. 姓名請優先找中文姓名。
-        3. 電話請排除郵遞區號或傳真。
-        4. 只回傳 JSON 格式，不要有任何其他文字說明。
-      `;
-
-      console.log("Sending request to Gemini...");
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            data: base64Data,
-            mimeType: file.type
-          }
-        }
-      ]);
-
-      const response = await result.response;
-      const text = response.text();
-      console.log("Gemini Raw Response:", text);
-      
-      // 清理可能的 Markdown 標記
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const data = JSON.parse(cleanJson);
-      console.log("Parsed OCR Data:", data);
+      if (!data) throw lastError;
 
       // 3. 儲存聯絡人
       const newContactId = await addContact({
@@ -255,10 +259,10 @@ const MemoryFeed = () => {
       } else if (errorContent.includes('404')) {
         errorMsg = '模型不存在或不支援此地區（404 Not Found）。';
       } else if (errorContent.includes('fetch')) {
-        errorMsg = '網路請求失敗，請檢查您的網路連線或代理伺服器。';
+        errorMsg = '網路請求失敗。這通常是因為 Google API 被您的網路環境（如公司防火牆或 VPN）阻擋，或者 API 網址不正確。';
       }
       
-      alert(`${errorMsg}\n\n錯誤詳情：${error.message.substring(0, 100)}`);
+      alert(`${errorMsg}\n\n錯誤詳情：${error.message.substring(0, 150)}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
