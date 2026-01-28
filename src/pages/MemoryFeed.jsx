@@ -171,47 +171,88 @@ const MemoryFeed = () => {
       const ocrText = result.data.text;
       const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean);
       
-      // 簡易解析邏輯
-      let extractedName = '新掃描聯絡人 (OCR)';
+      // --- 進階解析邏輯 ---
+      // 1. 預處理與字元清理
+      const cleanLines = lines.map(line => {
+        // 移除特殊符號，保留中文、英文、數字、Email 符號與電話符號
+        let cleaned = line.replace(/[^\u4e00-\u9fa5a-zA-Z0-9@. \-()#]/g, '').trim();
+        // 處理常見 OCR 錯誤 (例如將 O 誤認為 0，或 I 誤認為 1)
+        // 這裡暫時不做強力替換，以免破壞姓名
+        return cleaned;
+      }).filter(l => l.length >= 2);
+      
+      let extractedName = '';
       let extractedPhone = '';
       let extractedEmail = '';
       let extractedCompany = '';
 
-      // 1. 提取電話 (尋找符合電話格式的字串)
-      const phoneRegex = /(?:\+?886|0)9\d{2}-?\d{3}-?\d{3}|(?:\+?886|0)\d{1,2}-?\d{3,4}-?\d{4}/;
-      const phoneMatch = ocrText.match(phoneRegex);
-      if (phoneMatch) extractedPhone = phoneMatch[0];
-
-      // 2. 提取 Email
+      // 2. 提取 Email (最準確，優先提取)
       const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
       const emailMatch = ocrText.match(emailRegex);
-      if (emailMatch) extractedEmail = emailMatch[0];
+      if (emailMatch) extractedEmail = emailMatch[0].toLowerCase();
 
-      // 3. 提取公司名稱 (尋找常見關鍵字)
-      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.'];
-      const companyLine = lines.find(line => 
-        companyKeywords.some(keyword => line.includes(keyword)) && 
-        line.length > 2 && 
-        line.length < 30
-      );
-      if (companyLine) {
-        extractedCompany = companyLine.trim();
+      // 3. 提取電話 (台灣手機與市話格式)
+      const phoneRegex = /(?:\+?886|0)9\d{2}-?\d{3}-?\d{3}|(?:\+?886|0)\d{1,2}-?\d{3,4}-?\d{4}/;
+      const phoneMatch = ocrText.match(phoneRegex);
+      if (phoneMatch) {
+        extractedPhone = phoneMatch[0].replace(/-/g, '');
+      } else {
+        // 嘗試找純數字且長度符合的行
+        const digitOnlyLine = cleanLines.find(l => /^09\d{8}$/.test(l.replace(/\s/g, '')));
+        if (digitOnlyLine) extractedPhone = digitOnlyLine.replace(/\s/g, '');
       }
 
-      // 4. 提取姓名 (通常在第一行或包含特定關鍵字之後，這裡採樣第一行非空白字串)
-      if (lines.length > 0) {
-        // 排除掉明顯是公司名或地址或 Email 的行
-        const possibleName = lines.find(l => {
-          const isTooLong = l.length > 10;
-          const isTooShort = l.length < 2;
-          const isEmail = l.includes('@');
-          const isPhone = /\d{4}/.test(l);
-          const isCompany = extractedCompany === l || companyKeywords.some(k => l.includes(k));
-          const hasAddressKeyword = ['路', '街', '巷', '弄', '號', '樓', '室'].some(k => l.includes(k));
-          
-          return !isTooLong && !isTooShort && !isEmail && !isPhone && !isCompany && !hasAddressKeyword;
-        });
-        if (possibleName) extractedName = possibleName;
+      // 4. 提取公司名稱 (擴大關鍵字庫與排除邏輯)
+      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠'];
+      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', '電話', '手機', '傳真', 'Email', '網址', 'http'];
+      
+      // 找包含公司關鍵字且不包含地址關鍵字的行
+      const companyCandidates = cleanLines.filter(line => 
+        companyKeywords.some(keyword => line.includes(keyword)) && 
+        !excludeKeywords.some(ex => line.includes(ex)) &&
+        line.length > 3 && 
+        line.length < 40
+      );
+      
+      if (companyCandidates.length > 0) {
+        // 優先取較長且包含「公司」或「集團」的行
+        extractedCompany = companyCandidates.sort((a, b) => b.length - a.length)[0];
+      }
+
+      // 5. 提取姓名 (台灣姓名特徵：2-4 個中文字)
+      const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人'];
+      
+      // 找純中文且長度 2-4 的行，且不包含公司或職稱關鍵字
+      const nameCandidates = cleanLines.filter(l => 
+        /^[\u4e00-\u9fa5]{2,4}$/.test(l) && 
+        !companyKeywords.some(k => l.includes(k)) &&
+        !titleKeywords.some(k => l.includes(k)) &&
+        !excludeKeywords.some(k => l.includes(k))
+      );
+
+      if (nameCandidates.length > 0) {
+        // 姓名通常在名片的前半部分
+        extractedName = nameCandidates[0];
+      } else {
+        // 如果找不到純中文名，嘗試找包含職稱的行並提取職稱前的文字
+        const lineWithTitle = cleanLines.find(l => 
+          titleKeywords.some(k => l.includes(k)) && 
+          l.length < 15 &&
+          !excludeKeywords.some(k => l.includes(k))
+        );
+        
+        if (lineWithTitle) {
+          const title = titleKeywords.find(k => lineWithTitle.includes(k));
+          extractedName = lineWithTitle.split(title)[0].trim() || lineWithTitle;
+        } else {
+          // 最後的備案：找最短且非排除關鍵字的行
+          const fallback = cleanLines.find(l => 
+            l.length >= 2 && l.length <= 6 && 
+            !excludeKeywords.some(k => l.includes(k)) &&
+            !companyKeywords.some(k => l.includes(k))
+          );
+          extractedName = fallback || '新掃描聯絡人';
+        }
       }
 
       const newContactId = await addContact({
@@ -224,7 +265,7 @@ const MemoryFeed = () => {
         tags: ['OCR 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: `透過名片掃描新增。原始文字：\n${ocrText.substring(0, 100)}...`, 
+          content: `透過名片掃描新增。${extractedCompany ? `公司：${extractedCompany}。` : ''}OCR 原始內容：${ocrText.slice(0, 50)}...`, 
           location: '名片掃描' 
         }],
         importance: 50,
@@ -713,12 +754,12 @@ const MemoryFeed = () => {
                 />
               </div>
 
-              <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">發生日期</label>
                   <input 
                     type="date"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-white text-sm focus:ring-1 ring-primary outline-none transition-all color-scheme-dark"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-3.5 text-white text-xs focus:ring-1 ring-primary outline-none transition-all color-scheme-dark"
                     value={eventDate}
                     onChange={(e) => setEventDate(e.target.value)}
                   />
@@ -727,7 +768,7 @@ const MemoryFeed = () => {
                   <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">聯絡電話</label>
                   <input 
                     type="tel"
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3.5 text-white text-sm focus:ring-1 ring-primary outline-none transition-all placeholder:text-white/20"
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl px-3 py-3.5 text-white text-xs focus:ring-1 ring-primary outline-none transition-all placeholder:text-white/20"
                     placeholder="選填"
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
