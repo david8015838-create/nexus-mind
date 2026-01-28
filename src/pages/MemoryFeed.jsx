@@ -206,8 +206,14 @@ const MemoryFeed = () => {
       console.log("Starting Gemini OCR with Compressed Image...");
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
+      // 診斷資訊：檢查 Key 的狀態（不洩漏完整金鑰）
+      const keyStatus = apiKey 
+        ? `已讀取 (前4碼: ${apiKey.substring(0, 4)}..., 長度: ${apiKey.length})` 
+        : "未讀取 (Empty)";
+      console.log(`🔑 API Key 狀態: ${keyStatus}`);
+      
       if (!apiKey) {
-        throw new Error("找不到 API Key，請檢查 .env 檔案中的 VITE_GEMINI_API_KEY");
+        throw new Error("找不到 API Key，請檢查 .env 或 GitHub Secrets 設定 (VITE_GEMINI_API_KEY)");
       }
 
       const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
@@ -335,7 +341,7 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         errorMsg = '【網路阻斷】無法連接至 Google API，請檢查 VPN 或網路設定。';
       }
       
-      alert(`${errorMsg}\n\n🔍 診斷資訊：\n狀態碼: ${errorStatus}\n具體原因: ${errorReason.substring(0, 200)}`);
+      alert(`${errorMsg}\n\n🔍 診斷資訊：\n金鑰狀態: ${keyStatus}\n狀態碼: ${errorStatus}\n具體原因: ${errorReason.substring(0, 200)}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
