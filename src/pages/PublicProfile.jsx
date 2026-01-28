@@ -84,7 +84,14 @@ const PublicProfile = () => {
             <p><span className="text-primary/60">Path:</span> {window.location.hash}</p>
             <p><span className="text-primary/60">Gemini Key:</span> {import.meta.env.VITE_GEMINI_API_KEY ? '✅ Detected' : '❌ Missing'}</p>
             <p><span className="text-primary/60">Status:</span> {error || 'No Error'}</p>
-            <p><span className="text-primary/60">Build Time:</span> 2026-01-29 00:20 (V5-FINAL)</p>
+            <p className="text-red-400 font-bold animate-pulse">⚠️ 請務必開啟無痕模式或清除快取以查看最新修正版！</p>
+            <p><span className="text-primary/60">Build Time:</span> 2026-01-29 00:35 (V6-ULTRA-FAST)</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-2 px-4 py-1 bg-white/10 rounded-full text-xs font-bold hover:bg-white/20 transition-all"
+            >
+              🔄 點此強制刷新頁面
+            </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <button 
@@ -106,18 +113,18 @@ const PublicProfile = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-primary/30 overflow-x-hidden">
-      {/* Background Mesh */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-40">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 blur-[100px] rounded-full"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/5 blur-[100px] rounded-full"></div>
+    <div className="min-h-[100dvh] bg-[#0a0a0a] text-white selection:bg-primary/30 overflow-x-hidden relative">
+      {/* Background Mesh - Optimized for mobile performance */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-30">
+        <div className="absolute top-[-5%] left-[-5%] w-[50%] h-[50%] bg-primary/10 blur-[60px] rounded-full"></div>
+        <div className="absolute bottom-[-5%] right-[-5%] w-[50%] h-[50%] bg-purple-500/5 blur-[60px] rounded-full"></div>
       </div>
 
       <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none"></div>
 
-      <main className="relative z-10 max-w-2xl mx-auto px-6 pt-24 pb-32">
+      <main className="relative z-10 max-w-2xl mx-auto px-6 pt-16 pb-32">
         {/* Profile Header */}
-        <div className="flex flex-col items-center text-center mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="flex flex-col items-center text-center mb-12 animate-in fade-in duration-500">
           <div className="relative mb-8 group">
             <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full group-hover:bg-primary/40 transition-all duration-700 scale-110 pointer-events-none"></div>
             {profile.avatar ? (
@@ -148,7 +155,7 @@ const PublicProfile = () => {
 
         {/* Links Section */}
         {profile.links && profile.links.length > 0 && (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-200">
+          <div className="space-y-4 animate-in fade-in duration-700 delay-100">
             <h2 className="text-[10px] font-black text-primary uppercase tracking-[0.3em] text-center mb-8">社交與連結</h2>
             {profile.links.map((link, idx) => (
               <a 

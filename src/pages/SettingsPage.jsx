@@ -184,6 +184,7 @@ const SettingsPage = () => {
       setShareUrl(url);
       setPublishStatus('success');
       setShowShareModal(true);
+      alert('公開個人檔案發佈成功！');
       // 額外提示
       console.log("SUCCESS: Profile published to Firestore. Link:", url);
     } catch (error) {
