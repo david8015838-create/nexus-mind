@@ -72,13 +72,13 @@ export const NexusProvider = ({ children }) => {
     try {
       const allContacts = await db.contacts.toArray();
       const allSchedules = await db.schedules.toArray();
-      const profile = await db.settings.get('userProfile');
+      const profile = (await db.settings.get('userProfile')) || {};
       
       const userDocRef = doc(firestore, 'users', currentUser.uid);
       await setDoc(userDocRef, { 
         profile, 
         lastSynced: new Date(),
-        email: currentUser.email 
+        email: currentUser.email || '' 
       }, { merge: true });
 
       // Helper for batch processing with mirroring
@@ -88,7 +88,7 @@ export const NexusProvider = ({ children }) => {
         // 1. Get existing docs to identify what to delete (Mirroring)
         const existingDocs = await getDocs(colRef);
         const existingIds = existingDocs.docs.map(doc => doc.id);
-        const currentIds = dataArray.map(item => item.id);
+        const currentIds = dataArray.map(item => item.id).filter(Boolean);
         const idsToDelete = existingIds.filter(id => !currentIds.includes(id));
 
         // 2. Process deletions and updates in chunks (Firestore limit is 500)
@@ -108,8 +108,21 @@ export const NexusProvider = ({ children }) => {
 
         // Handle updates/adds
         for (const item of dataArray) {
-          // Deep clone to ensure serializable data and handle Dates
-          const serializedItem = JSON.parse(JSON.stringify(item));
+          if (!item.id) continue;
+          
+          // Better serialization: Handle Dates and remove undefined
+          const serializedItem = Object.entries(item).reduce((acc, [key, value]) => {
+            if (value === undefined) return acc;
+            if (value instanceof Date) {
+              acc[key] = value.toISOString();
+            } else if (Array.isArray(value)) {
+              acc[key] = value.map(v => (v instanceof Date ? v.toISOString() : v));
+            } else {
+              acc[key] = value;
+            }
+            return acc;
+          }, {});
+
           batch.set(doc(colRef, item.id), serializedItem);
           count++;
           if (count === 500) {
@@ -144,24 +157,34 @@ export const NexusProvider = ({ children }) => {
       if (userDoc.exists()) {
         const data = userDoc.data();
         if (data.profile) {
+          // Restore profile and handle potential theme colors or other settings
           await db.settings.put({ ...data.profile, id: 'userProfile' });
         }
       }
+
+      // Helper to restore dates in objects
+      const restoreDates = (obj) => {
+        if (!obj || typeof obj !== 'object') return obj;
+        
+        const restored = Array.isArray(obj) ? [] : {};
+        for (const [key, value] of Object.entries(obj)) {
+          if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(value)) {
+            restored[key] = new Date(value);
+          } else if (typeof value === 'object') {
+            restored[key] = restoreDates(value);
+          } else {
+            restored[key] = value;
+          }
+        }
+        return restored;
+      };
 
       // 1. Sync Contacts
       const contactsColRef = collection(firestore, 'users', currentUser.uid, 'contacts');
       const querySnapshot = await getDocs(contactsColRef);
       const cloudContacts = [];
       querySnapshot.forEach(doc => {
-        const data = doc.data();
-        // Restore dates from string if needed
-        if (data.memories) {
-          data.memories = data.memories.map(m => ({
-            ...m,
-            date: m.date ? new Date(m.date) : new Date()
-          }));
-        }
-        cloudContacts.push(data);
+        cloudContacts.push(restoreDates(doc.data()));
       });
 
       if (cloudContacts.length > 0) {
@@ -175,10 +198,7 @@ export const NexusProvider = ({ children }) => {
       const schedulesSnapshot = await getDocs(schedulesColRef);
       const cloudSchedules = [];
       schedulesSnapshot.forEach(doc => {
-        const data = doc.data();
-        // Ensure date is a Date object
-        if (data.date) data.date = new Date(data.date);
-        cloudSchedules.push(data);
+        cloudSchedules.push(restoreDates(doc.data()));
       });
 
       if (cloudSchedules.length > 0) {
@@ -229,24 +249,29 @@ export const NexusProvider = ({ children }) => {
 
   const clearAllData = async () => {
     await db.contacts.clear();
+    if (currentUser) syncToCloud().catch(console.error);
   };
 
   const addContact = async (contact) => {
     const id = crypto.randomUUID();
     await db.contacts.add({ ...contact, id, lastUpdated: new Date() });
+    if (currentUser) syncToCloud().catch(console.error);
     return id;
   };
 
   const updateContact = async (id, updates) => {
     await db.contacts.update(id, { ...updates, lastUpdated: new Date() });
+    if (currentUser) syncToCloud().catch(console.error);
   };
 
   const updateProfile = async (updates) => {
     await db.settings.update('userProfile', updates);
+    if (currentUser) syncToCloud().catch(console.error);
   };
 
   const deleteContact = async (id) => {
     await db.contacts.delete(id);
+    if (currentUser) syncToCloud().catch(console.error);
   };
 
   const publishProfile = async () => {
@@ -265,6 +290,7 @@ export const NexusProvider = ({ children }) => {
     };
     
     await setDoc(publicRef, publicData);
+    if (currentUser) syncToCloud().catch(console.error);
     return currentUser.uid;
   };
 
@@ -276,6 +302,7 @@ export const NexusProvider = ({ children }) => {
         date: memory.date || new Date() 
       }];
       await db.contacts.update(contactId, { memories, lastUpdated: new Date() });
+      if (currentUser) syncToCloud().catch(console.error);
     }
   };
 
@@ -302,15 +329,18 @@ export const NexusProvider = ({ children }) => {
   const addSchedule = async (schedule) => {
     const id = crypto.randomUUID();
     await db.schedules.add({ ...schedule, id });
+    if (currentUser) syncToCloud().catch(console.error);
     return id;
   };
 
   const updateSchedule = async (id, updates) => {
     await db.schedules.update(id, updates);
+    if (currentUser) syncToCloud().catch(console.error);
   };
 
   const deleteSchedule = async (id) => {
     await db.schedules.delete(id);
+    if (currentUser) syncToCloud().catch(console.error);
   };
 
   return (

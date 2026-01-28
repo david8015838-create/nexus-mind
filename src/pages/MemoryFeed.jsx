@@ -171,101 +171,134 @@ const MemoryFeed = () => {
       const ocrText = result.data.text;
       const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean);
       
-      // --- 進階解析邏輯 ---
-      // 1. 預處理與字元清理
-      const cleanLines = lines.map(line => {
-        // 移除特殊符號，保留中文、英文、數字、Email 符號與電話符號
-        let cleaned = line.replace(/[^\u4e00-\u9fa5a-zA-Z0-9@. \-()#]/g, '').trim();
-        // 處理常見 OCR 錯誤 (例如將 O 誤認為 0，或 I 誤認為 1)
-        // 這裡暫時不做強力替換，以免破壞姓名
-        return cleaned;
-      }).filter(l => l.length >= 2);
+      // --- 進階解析邏輯 (名片實例優化版) ---
+      // 1. 預處理：清理字元與行分割
+      const allText = ocrText.replace(/\r/g, '');
+      const rawLines = allText.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
       
+      const cleanLines = rawLines.filter(line => {
+        const noSymbols = line.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
+        return noSymbols.length >= 2;
+      });
+
       let extractedName = '';
       let extractedPhone = '';
       let extractedEmail = '';
       let extractedCompany = '';
+      let extractedTitle = '';
 
-      // 2. 提取 Email (最準確，優先提取)
+      // 2. 提取 Email (最準確，優先)
       const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-      const emailMatch = ocrText.match(emailRegex);
+      const emailMatch = allText.match(emailRegex);
       if (emailMatch) extractedEmail = emailMatch[0].toLowerCase();
 
-      // 3. 提取電話 (台灣手機與市話格式)
-      const phoneRegex = /(?:\+?886|0)9\d{2}-?\d{3}-?\d{3}|(?:\+?886|0)\d{1,2}-?\d{3,4}-?\d{4}/;
-      const phoneMatch = ocrText.match(phoneRegex);
-      if (phoneMatch) {
-        extractedPhone = phoneMatch[0].replace(/-/g, '');
-      } else {
-        // 嘗試找純數字且長度符合的行
-        const digitOnlyLine = cleanLines.find(l => /^09\d{8}$/.test(l.replace(/\s/g, '')));
-        if (digitOnlyLine) extractedPhone = digitOnlyLine.replace(/\s/g, '');
-      }
+      // 3. 提取電話 (針對台灣名片優化)
+      // 匹配：886-9xx-xxx-xxx, 09xx xxx xxx, 09xxxxxxxx, 行動：... 等
+      const phonePatterns = [
+        /(?:行動|手機|TEL|Mobile|行動電話|M)[:：\s]?(?:\+?886|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}/i,
+        /(?:\+?886|0)9\d{2}[-\s]?\d{3}[-\s]?\d{3}/, // 標準手機格式 (含空格/橫槓)
+        /(?:\+?886|0)\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/, // 市話
+        /886[-\s]?9\d{2}[-\s]?\d{3}[-\s]?\d{3}/ // 無 + 號的 886
+      ];
 
-      // 4. 提取公司名稱 (擴大關鍵字庫與排除邏輯)
-      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠'];
-      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', '電話', '手機', '傳真', 'Email', '網址', 'http'];
-      
-      // 找包含公司關鍵字且不包含地址關鍵字的行
-      const companyCandidates = cleanLines.filter(line => 
-        companyKeywords.some(keyword => line.includes(keyword)) && 
-        !excludeKeywords.some(ex => line.includes(ex)) &&
-        line.length > 3 && 
-        line.length < 40
-      );
-      
-      if (companyCandidates.length > 0) {
-        // 優先取較長且包含「公司」或「集團」的行
-        extractedCompany = companyCandidates.sort((a, b) => b.length - a.length)[0];
-      }
-
-      // 5. 提取姓名 (台灣姓名特徵：2-4 個中文字)
-      const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人'];
-      
-      // 找純中文且長度 2-4 的行，且不包含公司或職稱關鍵字
-      const nameCandidates = cleanLines.filter(l => 
-        /^[\u4e00-\u9fa5]{2,4}$/.test(l) && 
-        !companyKeywords.some(k => l.includes(k)) &&
-        !titleKeywords.some(k => l.includes(k)) &&
-        !excludeKeywords.some(k => l.includes(k))
-      );
-
-      if (nameCandidates.length > 0) {
-        // 姓名通常在名片的前半部分
-        extractedName = nameCandidates[0];
-      } else {
-        // 如果找不到純中文名，嘗試找包含職稱的行並提取職稱前的文字
-        const lineWithTitle = cleanLines.find(l => 
-          titleKeywords.some(k => l.includes(k)) && 
-          l.length < 15 &&
-          !excludeKeywords.some(k => l.includes(k))
-        );
-        
-        if (lineWithTitle) {
-          const title = titleKeywords.find(k => lineWithTitle.includes(k));
-          extractedName = lineWithTitle.split(title)[0].trim() || lineWithTitle;
-        } else {
-          // 最後的備案：找最短且非排除關鍵字的行
-          const fallback = cleanLines.find(l => 
-            l.length >= 2 && l.length <= 6 && 
-            !excludeKeywords.some(k => l.includes(k)) &&
-            !companyKeywords.some(k => l.includes(k))
-          );
-          extractedName = fallback || '新掃描聯絡人';
+      for (const pattern of phonePatterns) {
+        const match = allText.match(pattern);
+        if (match) {
+          // 清理非數字字元，但保留可能的 + 號
+          let cleaned = match[0].replace(/[^\d+]/g, '');
+          // 轉換 886 為 0
+          if (cleaned.startsWith('886')) cleaned = '0' + cleaned.slice(3);
+          if (cleaned.startsWith('+886')) cleaned = '0' + cleaned.slice(4);
+          extractedPhone = cleaned;
+          break;
         }
       }
+
+      // 4. 定義擴充關鍵字庫
+      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠', '醫院', '診所', '銀行', '控股'];
+      const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人', '顧問', '教授', '工程師', 'Team Lead', 'Lead', '工程師', '分處'];
+      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', 'Address', '地址', '統編', '傳真', 'FAX', 'www', 'http', '郵遞區號', 'Tel', 'Email'];
+
+      // 5. 提取公司名稱 (排除郵遞區號與純地址行)
+      const companyCandidates = cleanLines.filter(line => {
+        const hasKeyword = companyKeywords.some(keyword => line.includes(keyword));
+        const hasExclude = excludeKeywords.some(ex => line.includes(ex));
+        const isPostalCode = /^\d{3,6}/.test(line); // 排除郵遞區號開頭的行
+        return hasKeyword && !hasExclude && !isPostalCode && line.length > 3;
+      });
+      if (companyCandidates.length > 0) {
+        // 優先找包含「控股」、「有限公司」或最長的那行
+        const bestCompany = companyCandidates.find(c => c.includes('控股') || c.includes('有限公司') || c.includes('集團')) || companyCandidates[0];
+        extractedCompany = bestCompany;
+      }
+
+      // 6. 提取職稱
+      const titleCandidates = cleanLines.filter(line => 
+        titleKeywords.some(keyword => line.includes(keyword)) &&
+        line.length < 25 &&
+        !line.includes('@')
+      );
+      if (titleCandidates.length > 0) {
+        extractedTitle = titleCandidates[0];
+      }
+
+      // 7. 提取姓名 (處理中英文並列與純英文)
+      const nameCandidates = cleanLines.filter(line => {
+        if (line.includes('@') || line.match(/\d{8,}/) || excludeKeywords.some(k => line.includes(k))) return false;
+        if (companyKeywords.some(k => line.includes(k)) && line.length > 8) return false;
+        if (line.length > 20) return false;
+        return true;
+      });
+
+      // 優先尋找「中文姓名 + 英文名」或「純中文姓名」
+      const nameWithEnglish = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}\s+[a-zA-Z\s]+$/.test(l));
+      const pureChineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l));
+      
+      if (nameWithEnglish) {
+        extractedName = nameWithEnglish;
+      } else if (pureChineseName) {
+        extractedName = pureChineseName;
+      } else {
+        // 尋找 Show Hu 這種格式的英文名 (通常在職稱上方)
+        const englishName = nameCandidates.find(l => /^[A-Z][a-z]+\s[A-Z][a-z]+$/.test(l));
+        if (englishName) {
+          extractedName = englishName;
+        } else {
+          // 備案：嘗試從包含職稱的行提取
+          const lineWithTitle = nameCandidates.find(l => titleKeywords.some(k => l.includes(k)));
+          if (lineWithTitle) {
+            const title = titleKeywords.find(k => lineWithTitle.includes(k));
+            const namePart = lineWithTitle.split(title)[0].trim();
+            if (namePart.length >= 2) extractedName = namePart;
+          }
+        }
+      }
+
+      // 如果還是找不到，取第一條不包含關鍵字的短行
+      if (!extractedName) {
+        const fallback = nameCandidates.find(l => 
+          l.length >= 2 && l.length <= 12 && 
+          !companyKeywords.some(k => l.includes(k)) &&
+          !titleKeywords.some(k => l.includes(k))
+        );
+        extractedName = fallback || '新掃描聯絡人';
+      }
+
+      // 8. 最終清理
+      extractedName = extractedName.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '').trim();
 
       const newContactId = await addContact({
         name: extractedName,
         phone: extractedPhone,
         email: extractedEmail,
         company: extractedCompany,
+        bio: extractedTitle ? `職稱：${extractedTitle}` : '',
         cardImage: base64String,
         ocrText,
         tags: ['OCR 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: `透過名片掃描新增。${extractedCompany ? `公司：${extractedCompany}。` : ''}OCR 原始內容：${ocrText.slice(0, 50)}...`, 
+          content: `透過名片掃描新增。${extractedCompany ? `公司：${extractedCompany}。` : ''}${extractedTitle ? `職稱：${extractedTitle}。` : ''}OCR 原始內容：${ocrText.slice(0, 150).replace(/\n/g, ' ')}...`, 
           location: '名片掃描' 
         }],
         importance: 50,

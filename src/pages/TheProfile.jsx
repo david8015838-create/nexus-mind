@@ -108,6 +108,36 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
     }
   };
 
+  const handleEditCategory = async (oldCat, idx) => {
+    const newCat = await customPrompt('編輯分類', '輸入新的分類名稱...', oldCat);
+    if (newCat && newCat !== oldCat) {
+      const currentCats = [...(userProfile.categories || ['朋友', '同事', '家人', '交際', '重要'])];
+      currentCats[idx] = newCat;
+      await updateProfile({ ...userProfile, categories: currentCats });
+      
+      // Update tags in the current edit form if it contains the old category
+      const currentTags = editForm.tags.split(',').map(t => t.trim()).filter(t => t);
+      if (currentTags.includes(oldCat)) {
+        const newTags = currentTags.map(t => t === oldCat ? newCat : t);
+        setEditForm({ ...editForm, tags: newTags.join(', ') });
+      }
+    }
+  };
+
+  const handleDeleteCategory = async (cat, idx) => {
+    if (window.confirm(`確定要刪除分類「${cat}」嗎？這將會從您的全域分類清單中移除。`)) {
+      const currentCats = (userProfile.categories || ['朋友', '同事', '家人', '交際', '重要']).filter((_, i) => i !== idx);
+      await updateProfile({ ...userProfile, categories: currentCats });
+      
+      // Update tags in the current edit form if it contains the deleted category
+      const currentTags = editForm.tags.split(',').map(t => t.trim()).filter(t => t);
+      if (currentTags.includes(cat)) {
+        const newTags = currentTags.filter(t => t !== cat);
+        setEditForm({ ...editForm, tags: newTags.join(', ') });
+      }
+    }
+  };
+
   return (
     <div className="bg-nexus min-h-screen text-white pb-24">
       {/* Header */}
@@ -188,10 +218,10 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
                   </div>
                 )}
                 {contact.phone && (
-                  <div className="flex items-center gap-2 text-white/60">
+                  <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-white/60 hover:text-primary transition-colors">
                     <span className="material-symbols-outlined text-[16px]">call</span>
                     <span className="text-sm font-medium tracking-wide">{contact.phone}</span>
-                  </div>
+                  </a>
                 )}
                 {contact.email && (
                   <div className="flex items-center gap-2 text-white/60">
@@ -298,7 +328,7 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">電話</label>
                 <input 
@@ -311,16 +341,16 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">生日 (YYYY-MM-DD)</label>
+                <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">生日</label>
                 <input 
                   type="date"
-                  className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-4 py-4 text-white text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner color-scheme-dark"
+                  className="w-full bg-[#1c1f27] border border-white/10 rounded-2xl px-3 py-4 text-white text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50 transition-all shadow-inner color-scheme-dark"
                   value={editForm.birthday}
                   onChange={(e) => setEditForm({...editForm, birthday: e.target.value})}
                 />
               </div>
 
-              <div className="sm:col-span-2 space-y-2">
+              <div className="col-span-2 space-y-2">
                 <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">電子郵件</label>
                 <input 
                   type="email"
@@ -335,30 +365,49 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
               <label className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] ml-1">所屬分類</label>
               <div className="bg-[#1c1f27] rounded-2xl p-4 border border-white/10 shadow-inner">
                 <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto no-scrollbar">
-                  {(userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要']).map(cat => {
+                  {(userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要']).map((cat, idx) => {
                     const currentTags = editForm.tags.split(',').map(t => t.trim()).filter(t => t);
                     const isSelected = currentTags.includes(cat);
                     return (
-                      <button 
+                      <div 
                         key={cat}
-                        type="button"
-                        onClick={() => {
-                          let newTags;
-                          if (isSelected) {
-                            newTags = currentTags.filter(t => t !== cat);
-                          } else {
-                            newTags = [...currentTags, cat];
-                          }
-                          setEditForm({...editForm, tags: newTags.join(', ')});
-                        }}
-                        className={`px-4 py-2 rounded-xl text-[11px] font-bold transition-all border ${
+                        className={`group flex items-center gap-1 pl-3 pr-1 py-1.5 rounded-xl text-[11px] font-bold transition-all border ${
                           isSelected 
                             ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
                             : 'bg-white/5 border-white/5 text-white/40 hover:bg-white/10 hover:border-white/10'
                         }`}
                       >
-                        {cat}
-                      </button>
+                        <span 
+                          onClick={() => {
+                            let newTags;
+                            if (isSelected) {
+                              newTags = currentTags.filter(t => t !== cat);
+                            } else {
+                              newTags = [...currentTags, cat];
+                            }
+                            setEditForm({...editForm, tags: newTags.join(', ')});
+                          }}
+                          className="cursor-pointer"
+                        >
+                          {cat}
+                        </span>
+                        <div className="flex items-center gap-0.5 ml-1 border-l border-white/10 pl-1">
+                          <button 
+                            type="button"
+                            onClick={() => handleEditCategory(cat, idx)}
+                            className="p-0.5 text-white/20 hover:text-white transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">edit</span>
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => handleDeleteCategory(cat, idx)}
+                            className="p-0.5 text-white/20 hover:text-red-400 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">close</span>
+                          </button>
+                        </div>
+                      </div>
                     );
                   })}
                   <button 
@@ -585,10 +634,10 @@ ${contact.tags?.length ? `標籤：${contact.tags.join(', ')}` : ''}
 
             {/* Contact Details */}
             {contact.phone && (
-              <div className="flex items-center gap-2 mt-2 text-primary/80">
+              <a href={`tel:${contact.phone}`} className="flex items-center gap-2 mt-2 text-primary/80 hover:text-primary transition-colors">
                 <span className="material-symbols-outlined text-[16px]">call</span>
                 <span className="text-sm font-medium tracking-wide">{contact.phone}</span>
-              </div>
+              </a>
             )}
 
             {/* Bio Section */}

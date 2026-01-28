@@ -151,6 +151,15 @@ const SettingsPage = () => {
     }
   };
 
+  const handleDeleteCategory = (idx) => {
+    if (window.confirm(`確定要刪除分類「${editForm.categories[idx]}」嗎？`)) {
+      setEditForm({
+        ...editForm, 
+        categories: editForm.categories.filter((_, i) => i !== idx)
+      });
+    }
+  };
+
   const handleShare = async () => {
     if (!currentUser) {
       alert('請先登入 Google 帳號以生成分享連結');
@@ -453,9 +462,9 @@ const SettingsPage = () => {
                   {editForm.categories.map((cat, idx) => (
                     <div 
                       key={idx} 
-                      className={`group flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-bold transition-all border border-transparent ${
+                      className={`group flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full text-[11px] font-bold transition-all border border-transparent ${
                         isEditing 
-                          ? 'bg-white/10 text-white hover:border-white/20' 
+                          ? 'bg-white/10 text-white border-white/10' 
                           : 'bg-white/5 text-white/60'
                       }`}
                     >
@@ -466,23 +475,16 @@ const SettingsPage = () => {
                         {cat}
                       </span>
                       {isEditing && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 border-l border-white/10 ml-1 pl-1">
                           <button 
                             onClick={() => handleEditCategory(cat, idx)}
-                            className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-primary transition-all flex items-center"
+                            className="text-white/40 hover:text-primary transition-all flex items-center p-0.5"
                           >
                             <span className="material-symbols-outlined text-[14px]">edit</span>
                           </button>
                           <button 
-                            onClick={() => {
-                              if (window.confirm(`確定要刪除分類「${cat}」嗎？`)) {
-                                setEditForm({
-                                  ...editForm, 
-                                  categories: editForm.categories.filter((_, i) => i !== idx)
-                                });
-                              }
-                            }}
-                            className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 transition-all flex items-center"
+                            onClick={() => handleDeleteCategory(idx)}
+                            className="text-white/40 hover:text-red-400 transition-all flex items-center p-0.5"
                           >
                             <span className="material-symbols-outlined text-[14px]">close</span>
                           </button>
