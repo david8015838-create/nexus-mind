@@ -247,9 +247,14 @@ const MemoryFeed = () => {
         !/^\d{3,6}/.test(line) &&
         line.length > 3
       );
+      
       if (companyCandidates.length > 0) {
-        // 優先選擇較長的行（通常包含完整公司名稱）
-        extractedCompany = companyCandidates.sort((a, b) => b.length - a.length)[0];
+        // 優先選擇包含「股份有限公司」或「有限公司」的行
+        const priorityCompany = companyCandidates.find(c => c.includes('股份有限公司') || c.includes('有限公司'));
+        extractedCompany = priorityCompany || companyCandidates.sort((a, b) => b.length - a.length)[0];
+        
+        // 特殊處理：移除公司名稱中可能的雜質（如 OCR 誤認的字元）
+        extractedCompany = extractedCompany.replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s()]/g, '').trim();
       }
 
       const titleCandidates = cleanLines.filter(line => 
@@ -257,8 +262,10 @@ const MemoryFeed = () => {
         line.length < 40 && !line.includes('@') && !line.includes('.')
       );
       if (titleCandidates.length > 0) {
-        // 優先找不包含公司名稱的行作為職稱
+        // 優先找不包含公司名稱的行作為職稱，且長度較短的
         extractedTitle = titleCandidates.find(t => !companyKeywords.some(ck => t.includes(ck))) || titleCandidates[0];
+        // 移除可能的雜質
+        extractedTitle = extractedTitle.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '').trim();
       }
 
       // 6. 提取姓名 (最具挑戰性的部分)
@@ -269,6 +276,8 @@ const MemoryFeed = () => {
         if (companyKeywords.some(k => line.includes(k)) && line.length > 10) return false;
         // 排除明顯是地址的行
         if (line.includes('區') || line.includes('市') || line.includes('縣')) return false;
+        // 排除傳真、電話等關鍵字行
+        if (line.includes('傳真') || line.includes('FAX') || line.includes('電話') || line.includes('TEL')) return false;
         if (line.length > 25 || line.length < 2) return false;
         return true;
       });
@@ -278,8 +287,8 @@ const MemoryFeed = () => {
         (/^[\u4e00-\u9fa5]{2,4}[\s/|]+[a-zA-Z\s]+$/.test(l)) || 
         (/^[a-zA-Z\s]+[\s/|]+[\u4e00-\u9fa5]{2,4}$/.test(l))
       );
-      // 尋找：純中文姓名 (2-4字)
-      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l));
+      // 尋找：純中文姓名 (2-4字)，優先排除包含職稱關鍵字的
+      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l) && !titleKeywords.some(tk => l.includes(tk)));
       // 尋找：First Last 格式
       const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l));
 
@@ -287,11 +296,8 @@ const MemoryFeed = () => {
       else if (chineseName) extractedName = chineseName;
       else if (englishName) extractedName = englishName;
       else if (nameCandidates.length > 0) {
-        // 如果沒有明顯格式，取第一條排除公司與職稱的短行
-        extractedName = nameCandidates.find(l => 
-          !titleKeywords.some(tk => l.includes(tk)) && 
-          !companyKeywords.some(ck => l.includes(ck))
-        ) || nameCandidates[0];
+        // 針對「陳志鑫」這類情況，如果名字出現在職稱附近，嘗試從較短的候選行中找
+        extractedName = nameCandidates.sort((a, b) => a.length - b.length)[0];
       }
 
       // 7. 清理姓名：移除標點符號，保留中英文
@@ -299,6 +305,11 @@ const MemoryFeed = () => {
         .replace(/[|/\\_-]/g, ' ') // 移除常見分隔符
         .replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '')
         .trim();
+      
+      // 特殊校正：如果名字太長且包含公司關鍵字，截斷它
+      if (extractedName.length > 10 && companyKeywords.some(k => extractedName.includes(k))) {
+        extractedName = extractedName.split(/\s+/)[0].slice(0, 4);
+      }
 
       const newContactId = await addContact({
         name: extractedName,
@@ -800,7 +811,7 @@ const MemoryFeed = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="material-symbols-outlined text-primary text-base">event</span>

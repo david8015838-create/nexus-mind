@@ -136,9 +136,22 @@ const RelationshipGraph = () => {
           linkColor={link => link.color}
           linkWidth={link => link.value}
           onNodeClick={(node) => navigate(`/profile/${node.id}`)}
+          onNodeDragEnd={node => {
+            node.fx = node.x;
+            node.fy = node.y;
+          }}
+          enableNodeDrag={true}
           cooldownTicks={100}
-          d3AlphaDecay={0.02}
-          d3VelocityDecay={0.3}
+          d3AlphaDecay={0.01}
+          d3VelocityDecay={0.1}
+          d3Force={(forceName, force) => {
+            if (forceName === 'charge') {
+              force.strength(-150); // 增加節點間的斥力，讓類別更容易分開
+            }
+            if (forceName === 'link') {
+              force.distance(50); // 縮短連線距離，讓同類別更緊湊
+            }
+          }}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const label = node.name;
             const fontSize = 11 / globalScale;
