@@ -210,6 +210,7 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用使用者指定的最新系列模型 (2026)
+      // 說明：全面嘗試不同的模型名稱格式（帶 models/ 或 gemini/ 前綴）
       const modelNames = [
         "gemini-3-flash-preview", 
         "gemini-2.5-flash", 
@@ -220,45 +221,52 @@ const MemoryFeed = () => {
       let rawText = "";
       const triedModels = [];
 
-      for (const modelName of modelNames) {
-        try {
-          triedModels.push(modelName);
-          console.log(`🚀 正在調用指定模型: ${modelName}...`);
-          
-          // 使用 SDK 初始化模型，並嘗試加上 models/ 前綴以解決某些環境下的 404 問題
-          // 如果 models/ 報錯，會自動進入 catch 嘗試下一個模型
-          const model = genAI.getGenerativeModel({ model: `models/${modelName.trim()}` });
-          
-          const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
+      for (const baseName of modelNames) {
+        // 為每個模型名稱嘗試三種格式
+        const formats = [
+          `models/${baseName}`,
+          `gemini/${baseName}`,
+          baseName
+        ];
 
-          // 設定超時與請求參數
-          const result = await model.generateContent([
-            ocrPrompt,
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: 'image/jpeg'
+        for (const modelId of formats) {
+          try {
+            triedModels.push(modelId);
+            console.log(`🚀 正在嘗試調用格式: ${modelId}...`);
+            
+            const model = genAI.getGenerativeModel({ model: modelId.trim() });
+            
+            const ocrPrompt = `你是一個專業的名片辨識助手。請分析這張名片圖片，並僅回傳一個有效的 JSON 物件。不要包含任何 Markdown 標籤、解釋文字或額外符號。JSON 結構必須精確如下：{"name":"姓名","phone":"電話","email":"電子郵件","company":"公司名稱","title":"職稱","address":"地址","website":"網址","summary":"簡介"}`;
+
+            const result = await model.generateContent([
+              ocrPrompt,
+              {
+                inlineData: {
+                  data: base64Data,
+                  mimeType: 'image/jpeg'
+                }
               }
-            }
-          ]);
+            ]);
 
-          const response = await result.response;
-          rawText = response.text();
-          
-          if (rawText) {
-            console.log(`✅ 模型 ${modelName} 調用成功！`);
-            const cleanJson = rawText.replace(/```json|```/g, '').trim();
-            data = JSON.parse(cleanJson);
-            break; 
-          }
-        } catch (e) {
-          console.warn(`❌ 模型 ${modelName} 失敗:`, e.message);
-          lastError = e;
-          // 429 稍微等待，其餘錯誤（如 404）立即嘗試下一個
-          if (e.message?.includes('429')) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const response = await result.response;
+            rawText = response.text();
+            
+            if (rawText) {
+              console.log(`✅ 模型格式 ${modelId} 調用成功！`);
+              const cleanJson = rawText.replace(/```json|```/g, '').trim();
+              data = JSON.parse(cleanJson);
+              break; 
+            }
+          } catch (e) {
+            console.warn(`❌ 格式 ${modelId} 失敗:`, e.message);
+            lastError = e;
+            if (e.message?.includes('429')) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            // 404 則繼續嘗試下一種格式
           }
         }
+        if (data) break; // 如果其中一種格式成功，跳出基礎模型迴圈
       }
 
       if (!data) {
