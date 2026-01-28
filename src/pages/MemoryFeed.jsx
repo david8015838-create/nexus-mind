@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Tesseract from 'tesseract.js';
 import { QRCodeSVG } from 'qrcode.react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useNexus } from '../context/NexusContext';
 
 const MemoryFeed = () => {
   const navigate = useNavigate();
-  const { contacts, addContact, updateContact, addMemory, userProfile, updateProfile, customPrompt, schedules, currentUser } = useNexus();
+  const { contacts, addContact, updateContact, addMemory, userProfile, updateProfile, customPrompt, schedules, currentUser, login } = useNexus();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -158,234 +158,71 @@ const MemoryFeed = () => {
 
     setIsScanning(true);
     try {
+      // 1. 將圖片轉為 Base64
       const reader = new FileReader();
       const base64Promise = new Promise((resolve) => {
         reader.onloadend = () => resolve(reader.result);
         reader.readAsDataURL(file);
       });
       const base64String = await base64Promise;
+      const base64Data = base64String.split(',')[1];
 
-      // 使用繁體中文與英文進行辨識
-      const result = await Tesseract.recognize(file, 'chi_tra+eng', {
-        logger: m => console.log(m)
-      });
-      
-      const ocrText = result.data.text;
-      const lines = ocrText.split('\n').map(l => l.trim()).filter(Boolean);
-      
-      // --- 進階解析邏輯 (名片實例深度優化版) ---
-      // 1. 預處理：清理字元與行分割
-      const allText = ocrText.replace(/\r/g, '');
-      const rawLines = allText.split('\n').map(l => l.trim()).filter(l => l.length >= 1);
-      
-      // 移除干擾字元但保留關鍵符號
-      const cleanLines = rawLines.map(line => {
-        // 針對中文名片優化：移除中文字之間的空格 (OCR 常誤加)
-        if (/[\u4e00-\u9fa5]/.test(line)) {
-          return line.replace(/([\u4e00-\u9fa5])\s+([\u4e00-\u9fa5])/g, '$1$2');
+      // 2. 初始化 Gemini AI
+      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `
+        你是一個專業的名片辨識助手。請分析這張名片圖片，並以 JSON 格式回傳以下資訊：
+        {
+          "name": "姓名",
+          "phone": "電話 (請統一格式為 09xxxxxxxx 或市話格式)",
+          "email": "電子郵件",
+          "company": "公司名稱",
+          "title": "職稱",
+          "address": "地址",
+          "website": "網址",
+          "summary": "一段簡短的介紹，包含姓名、公司與職稱"
         }
-        return line;
-      }).filter(line => {
-        const noSymbols = line.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '');
-        return noSymbols.length >= 1;
-      });
+        注意：
+        1. 如果某個欄位無法辨識，請填入空字串。
+        2. 姓名請優先找中文姓名。
+        3. 電話請排除郵遞區號或傳真。
+        4. 只回傳 JSON 格式，不要有任何其他文字說明。
+      `;
 
-      let extractedName = '';
-      let extractedPhone = '';
-      let extractedEmail = '';
-      let extractedCompany = '';
-      let extractedTitle = '';
-
-      // 2. 提取 Email (最準確，優先)
-      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-      const emailMatch = allText.match(emailRegex);
-      if (emailMatch) extractedEmail = emailMatch[0].toLowerCase();
-
-      // 3. 提取電話 (深度優化台灣格式)
-      const phoneKeywords = ['行動', '手機', 'TEL', 'Mobile', '行動電話', 'M', 'T', 'Cell', 'Phone', '電話'];
-      // 優先尋找包含「行動」或「09」的行
-      const phoneLine = rawLines.find(l => {
-        const upper = l.toUpperCase().replace(/\s/g, '');
-        return (phoneKeywords.some(k => upper.includes(k.toUpperCase())) || upper.includes('09')) && /\d/.test(l);
-      });
-      
-      if (phoneLine) {
-        let cleaned = phoneLine.replace(/[^\d+]/g, '');
-        // 排除郵遞區號 (通常是 806616 這種 6 位數開頭的)
-        if (cleaned.startsWith('806616')) cleaned = cleaned.replace('806616', '');
-        
-        if (cleaned.length >= 9) {
-          if (cleaned.startsWith('886')) cleaned = '0' + cleaned.slice(3);
-          if (cleaned.startsWith('+886')) cleaned = '0' + cleaned.slice(4);
-          // 確保是 09 開頭的手機或 0 開頭的市話
-          if (cleaned.startsWith('0')) {
-            extractedPhone = cleaned;
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: file.type
           }
         }
-      }
+      ]);
 
-      if (!extractedPhone) {
-        const phonePatterns = [
-          /09\d{2}[-\s]?\d{3}[-\s]?\d{3}/,
-          /0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}/,
-          /09\d{8}/
-        ];
-
-        for (const pattern of phonePatterns) {
-          const match = allText.match(pattern);
-          if (match) {
-            let cleaned = match[0].replace(/[^\d+]/g, '');
-            if (cleaned.length >= 9) {
-              extractedPhone = cleaned;
-              break;
-            }
-          }
-        }
-      }
-
-      // 4. 定義關鍵字庫
-      const companyKeywords = ['公司', '有限公司', '集團', '行', 'Co.', 'Ltd.', 'Inc.', 'Corp.', '工作室', '協會', '大學', '科技', '法律', '事務所', '中心', '部門', '部', '廠', '醫院', '診所', '銀行', '控股', '分處', '顧問', '工業', '租賃'];
-      const titleKeywords = ['經理', '總裁', '執行長', '副總', '特助', '總監', '主任', '老師', '律師', '醫師', '處長', '組長', '專員', 'Manager', 'Director', 'CEO', 'Founder', '創辦人', '顧問', '教授', '工程師', 'Team Lead', 'Lead', 'Developer', 'Associate', 'Partner', '合夥人', '副總經理'];
-      const excludeKeywords = ['路', '街', '巷', '弄', '號', '樓', '室', '區', '市', '縣', 'Address', '地址', '統編', '傳真', 'FAX', 'www', 'http', '郵遞區號', 'Tel', 'Email', '網址', 'Website', 'Zip', '統 編', '傳 真', '806616'];
-
-      // 5. 提取公司與職稱
-      const companyCandidates = cleanLines.filter(line => 
-        (companyKeywords.some(keyword => line.includes(keyword)) || /控股|租賃/.test(line)) && 
-        !excludeKeywords.some(ex => line.includes(ex)) &&
-        !/^\d{3,6}/.test(line) &&
-        line.length > 3
-      );
+      const response = await result.response;
+      let text = response.text();
       
-      if (companyCandidates.length > 0) {
-        // 優先選擇包含關鍵字且較長的行 (通常是公司全名)
-        const priorityCompany = companyCandidates.find(c => c.includes('股份有限公司') || c.includes('有限公司') || c.includes('控股'));
-        extractedCompany = priorityCompany || companyCandidates.sort((a, b) => b.length - a.length)[0];
-        
-        // 清理公司名稱：移除開頭可能的雜質字元
-        extractedCompany = extractedCompany.replace(/^[^a-zA-Z\u4e00-\u9fa5]+/, '').trim();
-      }
-
-      const titleCandidates = cleanLines.filter(line => 
-        titleKeywords.some(keyword => line.toUpperCase().includes(keyword.toUpperCase())) &&
-        line.length < 40 && !line.includes('@') && !line.includes('.')
-      );
-      if (titleCandidates.length > 0) {
-        extractedTitle = titleCandidates.find(t => !companyKeywords.some(ck => t.includes(ck))) || titleCandidates[0];
-        extractedTitle = extractedTitle.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '').trim();
-      }
-
-      // 6. 提取姓名 (優化策略)
-      const nameCandidates = cleanLines.filter(l => {
-        const clean = l.replace(/\s/g, '');
-        // 排除地址、公司關鍵字、電話、Email、網址
-        if (clean.length < 2 || clean.length > 12) return false;
-        if (companyKeywords.some(k => clean.includes(k))) return false;
-        if (excludeKeywords.some(k => clean.includes(k))) return false;
-        if (clean.includes('@') || clean.includes('www') || clean.includes('http')) return false;
-        if (/\d/.test(clean)) return false;
-        return true;
-      });
-
-      // 優先找 2-4 字的純中文 (姓名常見格式)
-      const chineseName = nameCandidates.find(l => /^[\u4e00-\u9fa5]{2,4}$/.test(l.replace(/\s/g, '')));
-      // 其次找包含職稱關鍵字但長度適中的行 (例如 "經理 陳志鑫")
-      const nameWithTitle = nameCandidates.find(l => 
-        titleKeywords.some(tk => l.includes(tk)) && l.replace(/\s/g, '').length <= 8
-      );
-      // 再找包含中文的行
-      const mixedName = nameCandidates.find(l => /[\u4e00-\u9fa5]/.test(l));
-      // 再找英文格式 (First Last)
-      const englishName = nameCandidates.find(l => /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)+$/.test(l.trim()));
-
-      if (chineseName) {
-        extractedName = chineseName.replace(/\s/g, '');
-      } else if (nameWithTitle) {
-        // 移除職稱部分，剩下的就是名字
-        let potentialName = nameWithTitle;
-        titleKeywords.forEach(tk => { potentialName = potentialName.replace(tk, ''); });
-        extractedName = potentialName.replace(/[^\u4e00-\u9fa5a-zA-Z]/g, '').trim();
-      } else if (mixedName) {
-        extractedName = mixedName.replace(/\s/g, '');
-      } else if (englishName) {
-        extractedName = englishName.trim();
-      }
+      // 清理可能的 Markdown 標記
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
       
-      // 救援邏輯：如果姓名辨識結果跟 Email 前綴一樣，通常那是 Email 誤判為姓名
-      if (extractedEmail && extractedName) {
-        const emailPrefix = extractedEmail.split('@')[0].toLowerCase();
-        const cleanExtracted = extractedName.toLowerCase().replace(/\s/g, '');
-        if (cleanExtracted.includes(emailPrefix) || emailPrefix.includes(cleanExtracted)) {
-          // 如果有其他候選者，換一個
-          const fallbackName = nameCandidates.find(l => l !== extractedName && l.length >= 2 && !l.toLowerCase().includes(emailPrefix));
-          if (fallbackName) extractedName = fallbackName;
-          else if (cleanExtracted === emailPrefix) extractedName = ''; 
-        }
-      }
+      const data = JSON.parse(text);
 
-      // 如果還是空白，嘗試從全文字中找可能是名字的區塊 (針對特定案例)
-      if (!extractedName || extractedName === '新掃描聯絡人') {
-        // 尋找 2-3 個中文連在一起
-        const pureChineseMatch = allText.match(/[\u4e00-\u9fa5]{2,3}/g);
-        if (pureChineseMatch) {
-          const potentialNames = pureChineseMatch.filter(n => 
-            !companyKeywords.some(k => n.includes(k)) && 
-            !titleKeywords.some(k => n.includes(k)) &&
-            !excludeKeywords.some(k => n.includes(k))
-          );
-          if (potentialNames.length > 0) extractedName = potentialNames[0];
-        }
-      }
-
-      // 7. 清理姓名
-      extractedName = (extractedName || '新掃描聯絡人')
-        .replace(/[|/\\_-]/g, ' ')
-        .replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, '')
-        .trim();
-      
-      // 針對中文姓名雜質清理
-      if (extractedName.length > 4 && /[\u4e00-\u9fa5]/.test(extractedName)) {
-        const chineseOnly = extractedName.match(/[\u4e00-\u9fa5]+/g);
-        if (chineseOnly && chineseOnly[0].length >= 2 && chineseOnly[0].length <= 4) {
-          extractedName = chineseOnly[0];
-        }
-      }
-
-      // 針對「陳志鑫」案例的強效救援：如果 Email 是 kanechen 且姓名辨識失敗
-      if ((!extractedName || extractedName === '新掃描聯絡人' || extractedName === '還') && extractedEmail.includes('kanechen')) {
-        extractedName = '陳志鑫';
-      }
-
-      // 8. 公司名稱二次清理
-      if (extractedCompany) {
-        // 如果公司名稱中包含電話或統編，截斷它
-        if (extractedCompany.includes('行動') || extractedCompany.includes('09') || extractedCompany.includes('統編') || extractedCompany.includes('2242')) {
-          extractedCompany = extractedCompany.split(/行動|09|統編|2242/)[0].trim();
-        }
-        // 針對中租案例：如果公司名稱包含 CHAILEASE 或被誤認為 HEREENE
-        if (extractedCompany.toUpperCase().includes('HEREENE') || extractedEmail.includes('chailease')) {
-          extractedCompany = '中租控股 合迪股份有限公司';
-        }
-        // 移除末尾可能的非文字符號
-        extractedCompany = extractedCompany.replace(/[^\u4e00-\u9fa5a-zA-Z0-9()]+$/, '').trim();
-      }
-
-      // 9. 職稱進一步優化
-      if (extractedTitle && extractedCompany && extractedTitle.includes(extractedCompany)) {
-        extractedTitle = extractedTitle.replace(extractedCompany, '').trim();
-      }
-
+      // 3. 儲存聯絡人
       const newContactId = await addContact({
-        name: extractedName,
-        phone: extractedPhone,
-        email: extractedEmail,
-        company: extractedCompany,
-        bio: extractedTitle ? `職稱：${extractedTitle}` : '',
+        name: data.name || '新聯絡人',
+        phone: data.phone || '',
+        email: data.email || '',
+        company: data.company || '',
+        address: data.address || '',
+        website: data.website || '',
+        bio: data.title ? `職稱：${data.title}` : '',
         cardImage: base64String,
-        ocrText,
-        tags: ['OCR 掃描'],
+        ocrText: text, // 儲存原始 JSON 作為參考
+        tags: ['AI 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: `透過名片掃描新增。姓名：${extractedName}。公司：${extractedCompany || '未知公司'}。電話：${extractedPhone || '未辨識'}。Email：${extractedEmail || '未辨識'}。`, 
+          content: data.summary || `透過 AI 名片掃描新增。姓名：${data.name}。公司：${data.company}。`, 
           location: '名片掃描' 
         }],
         importance: 50,
@@ -394,7 +231,8 @@ const MemoryFeed = () => {
       if (navigator.vibrate) navigator.vibrate(50);
       navigate(`/profile/${newContactId}`);
     } catch (error) {
-      console.error('OCR failed:', error);
+      console.error('Gemini OCR failed:', error);
+      alert('辨識失敗，請確認 API Key 是否正確或網路連線正常。');
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);

@@ -28,11 +28,19 @@ const PublicProfile = () => {
           setProfile(data);
         } else {
           console.warn("No such profile document in 'public_profiles' for UID:", uid);
+          // 檢查當前 URL 資訊
+          console.log("Current window location:", window.location.href);
+          console.log("UID from params:", uid);
           setError('找不到此個人檔案');
         }
       } catch (err) {
         console.error("Error fetching public profile:", err);
-        setError('載入失敗：' + (err.message || '未知錯誤'));
+        // 如果是權限錯誤，給出更具體的提示
+        if (err.code === 'permission-denied') {
+          setError('讀取權限不足，請確認該檔案已設定為公開');
+        } else {
+          setError('載入失敗：' + (err.message || '未知錯誤'));
+        }
       } finally {
         setLoading(false);
       }

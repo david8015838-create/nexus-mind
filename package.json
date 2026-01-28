@@ -12,6 +12,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "clsx": "^2.1.0",
     "dexie": "^4.0.1",
     "dexie-react-hooks": "^4.2.0",
