@@ -210,11 +210,14 @@ const MemoryFeed = () => {
       const genAI = new GoogleGenerativeAI(apiKey);
       
       // 僅使用最穩定且支援多模態的系列模型
-      // 說明：此處的模型名稱必須符合 Google AI SDK 的官方定義 (models/...)
+      // 說明：根據 2026 年最新資訊，優先使用 Gemini 2.5 系列
       const modelNames = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-preview-09-25",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-exp",
         "gemini-1.5-flash",
-        "gemini-1.5-pro",
-        "gemini-2.0-flash-exp"
+        "gemini-1.5-pro"
       ];
       let lastError = null;
       let data = null;
