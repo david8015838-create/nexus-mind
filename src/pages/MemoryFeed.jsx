@@ -240,7 +240,7 @@ const MemoryFeed = () => {
 規範：
 1. 僅提取名片上的原始資訊，禁止添加任何額外的背景知識、英文翻譯或頭銜（如 KaneChen 等）。
 2. 僅回傳純 JSON，不含 Markdown 標籤或解釋。
-3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。
+3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。必須使用你提取到的【完整原始中文內容】，嚴禁縮寫（例如：不可將「合迪股份有限公司」縮寫為「合迪股份」，不可將「分處副總經理」縮寫為「副總經理」）。
 4. 排除所有標籤字眼（如 "call", "mail", "business"）。
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
 
@@ -288,13 +288,13 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         company: data.company || '',
         address: data.address || '',
         website: data.website || '',
-        bio: data.title ? `職稱：${data.title}` : '',
+        bio: data.title || '', // 直接存儲職稱，不加前綴
         cardImage: base64String,
         ocrText: rawText, // 儲存原始 JSON 作為參考
         tags: ['AI 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: data.summary || `透過 AI 名片掃描新增。姓名：${data.name}。公司：${data.company}。`, 
+          content: data.summary || `${data.name} 是 ${data.company} 的 ${data.title}`, 
           location: '名片掃描' 
         }],
         importance: 50,
