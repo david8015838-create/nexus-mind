@@ -296,13 +296,13 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         company: data.company || '',
         address: data.address || '',
         website: data.website || '',
-        bio: data.title || '', // 直接存儲職稱，不加前綴
+        bio: '', // 不自動填入職稱或背景資訊
         cardImage: base64String,
         ocrText: extractedText, // 儲存原始 JSON 作為參考
         tags: ['AI 掃描'],
         memories: [{ 
           date: new Date(), 
-          content: data.summary || `${data.name} 是 ${data.company} 的 ${data.title}`, 
+          content: '', // 不自動填入 AI 生成的摘要
           location: '名片掃描' 
         }],
         importance: 50,
