@@ -209,15 +209,23 @@ const MemoryFeed = () => {
       if (!apiKey) {
         throw new Error("找不到 API Key，請檢查 .env 檔案中的 VITE_GEMINI_API_KEY");
       }
+
+      const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
+規範：
+1. 【絕對禁止】添加名片上沒有的字：禁止添加英文姓名（如 KaneChen）、禁止添加英文頭銜（如 Vice President）、禁止添加任何背景介紹。
+2. 【僅限原始中文】：除了 Email 和網址外，所有欄位必須使用名片上的原始中文。
+3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。必須使用提取到的【完整原始中文內容】，嚴禁縮寫或截斷公司名稱（例如：不可將「合迪股份有限公司」縮寫為「合迪股份」）。
+4. 排除所有標籤字眼（如 "call", "mail", "business"）。
+5. 僅回傳純 JSON，不含 Markdown 標籤。
+JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
       
-      // 僅使用使用者指定的最新系列模型 (2026)
-      // 優先使用 Flash 模型以提升速度
+      // 優先使用圖表中顯示成功的 gemini-3 系列
       const modelNames = [
-        "gemini-3-flash-preview", 
-        "gemini-2.5-flash", 
-        "gemini-3-pro-preview"
+        "gemini-3-flash",
+        "gemini-1.5-flash", 
+        "gemini-1.5-pro"
       ];
       let lastError = null;
       let data = null;
@@ -239,15 +247,7 @@ const MemoryFeed = () => {
             
             const model = genAI.getGenerativeModel({ model: modelId.trim() });
             
-            const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
-規範：
-1. 【絕對禁止】添加名片上沒有的字：禁止添加英文姓名（如 KaneChen）、禁止添加英文頭銜（如 Vice President）、禁止添加任何背景介紹。
-2. 【僅限原始中文】：除了 Email 和網址外，所有欄位必須使用名片上的原始中文。
-3. summary 欄位必須精確為「[姓名] 是 [公司] 的 [職稱]」。必須使用提取到的【完整原始中文內容】，嚴禁縮寫或截斷公司名稱（例如：不可將「合迪股份有限公司」縮寫為「合迪股份」）。
-4. 排除所有標籤字眼（如 "call", "mail", "business"）。
-5. 僅回傳純 JSON，不含 Markdown 標籤。
-JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
-
+            console.log(`📡 正在發送請求至 Gemini (${modelId})...`);
             const result = await model.generateContent([
               ocrPrompt,
               {
@@ -274,13 +274,19 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
           } catch (e) {
             console.warn(`❌ 格式 ${modelId} 失敗:`, e.message);
             lastError = e;
+            
+            // 如果是 403 或 401，代表 Key 本身有問題或額度用盡，不需要再嘗試其他格式
+            if (e.message?.includes('403') || e.message?.includes('401')) {
+              console.error("🛑 偵測到權限錯誤或額度用盡，停止後續嘗試。");
+              break; 
+            }
+
             if (e.message?.includes('429')) {
               await new Promise(resolve => setTimeout(resolve, 1000));
             }
-            // 404 則繼續嘗試下一種格式
           }
         }
-        if (data) break; // 如果其中一種格式成功，跳出基礎模型迴圈
+        if (data || (lastError?.message?.includes('403'))) break; 
       }
 
       if (!data) {
@@ -312,24 +318,24 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       navigate(`/profile/${newContactId}`);
     } catch (error) {
       console.error('Gemini OCR Detailed Error:', error);
-      console.error('Error Stack:', error.stack);
+      
+      // 提取更深層的錯誤訊息
+      const errorStatus = error.status || (error.message?.match(/\d{3}/) ? error.message.match(/\d{3}/)[0] : 'Unknown');
+      const errorReason = error.message || '無詳細訊息';
       
       let errorMsg = '辨識失敗，請確認網路連線正常。';
-      const errorContent = error.message + (error.stack || '');
       
-      if (errorContent.includes('429')) {
-        errorMsg = 'API 額度已達上限（Too Many Requests），請稍後再試。';
-      } else if (errorContent.includes('403') || errorContent.includes('401')) {
-        errorMsg = 'API Key 無效或權限被拒（403 Forbidden），請檢查設定。';
-      } else if (errorContent.includes('404')) {
-        errorMsg = '模型不存在或不支援此地區（404 Not Found）。';
-      } else if (errorContent.includes('400')) {
-        errorMsg = '請求格式錯誤（400 Bad Request）。這可能是因為圖片檔案太大、格式不支援，或是 Prompt 內容有誤。';
-      } else if (errorContent.includes('fetch')) {
-        errorMsg = '網路請求失敗。這通常是因為 Google API (generativelanguage.googleapis.com) 被您的網路環境阻擋。請嘗試：\n1. 切換至 4G/5G 網路\n2. 若有開啟 VPN，請切換節點或關閉後再試\n3. 確認 API Key 是否已正確填寫。';
+      if (errorStatus === '429') {
+        errorMsg = '【額度限制】API 請求頻率太快或當日額度已滿。';
+      } else if (errorStatus === '403') {
+        errorMsg = '【權限拒絕】API Key 無效、權限未開啟，或所在地區不支援。';
+      } else if (errorStatus === '400') {
+        errorMsg = '【請求錯誤】圖片可能太模糊或格式不正確。';
+      } else if (errorReason.includes('fetch')) {
+        errorMsg = '【網路阻斷】無法連接至 Google API，請檢查 VPN 或網路設定。';
       }
       
-      alert(`${errorMsg}\n\n錯誤詳情：${error.message.substring(0, 150)}`);
+      alert(`${errorMsg}\n\n🔍 診斷資訊：\n狀態碼: ${errorStatus}\n具體原因: ${errorReason.substring(0, 200)}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
