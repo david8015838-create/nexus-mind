@@ -15,7 +15,9 @@ const MemoryFeed = () => {
 
   const shareUrl = useMemo(() => {
     if (!currentUser) return null;
-    return `${window.location.origin}/nexus-mind/p/${currentUser.uid}`;
+    // 使用 HashRouter 風格或確保路徑正確
+    const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+    return `${baseUrl}/p/${currentUser.uid}`;
   }, [currentUser]);
 
   // Guide Steps Data

@@ -176,8 +176,9 @@ const SettingsPage = () => {
     setIsPublishing(true);
     try {
       const uid = await publishProfile();
-      // 生成分享網址 (假設在當前網域下的 /p/:uid)
-      const url = `${window.location.origin}/nexus-mind/p/${uid}`;
+      // 生成分享網址，考慮 GitHub Pages 的子目錄
+      const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '').replace(/\/settings$/, '');
+      const url = `${baseUrl}/p/${uid}`;
       setShareUrl(url);
       setShowShareModal(true);
     } catch (error) {
