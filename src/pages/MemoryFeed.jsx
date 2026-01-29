@@ -1,3 +1,4 @@
+// v2.0.2 - Security hardened & OCR optimized
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
