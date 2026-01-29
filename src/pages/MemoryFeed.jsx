@@ -228,10 +228,11 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 鎖定 2026 年最新主流模型，移除過時版本以避免觸發 API 安全攔截
+      // 鎖定 2026 年最新主流模型
       const modelNames = [
         "gemini-3-flash-preview", 
-        "gemini-2.5-flash"
+        "gemini-2.5-flash",
+        "gemini-1.5-flash" // 加入 1.5-flash 作為最終保底，它是目前最穩定的版本
       ];
       let lastError = null;
       let data = null;
@@ -260,8 +261,20 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
 
             const result = await Promise.race([resultPromise, timeoutPromise]);
             
+            // 檢查回應是否包含有效的 content
             const response = await result.response;
             if (!response) throw new Error("Empty Response");
+            
+            // 2026 年 SDK 的安全檢查：確保 candidate 存在
+            const candidates = response.candidates || [];
+            if (candidates.length === 0) {
+              // 檢查是否被安全過濾器攔截
+              const feedback = response.promptFeedback;
+              if (feedback && feedback.blockReason) {
+                throw new Error(`安全性攔截: ${feedback.blockReason}`);
+              }
+              throw new Error("模型未回傳任何結果");
+            }
             
             extractedText = response.text();
             console.log(`📥 ${modelId} 回傳內容長度: ${extractedText?.length || 0}`);
