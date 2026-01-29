@@ -228,11 +228,10 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 鎖定 2026 年最新主流模型
+      // 嚴格鎖定 2026 年模型：僅使用 2.5 以上版本，徹底移除已失效的 1.5 系列
       const modelNames = [
         "gemini-3-flash-preview", 
-        "gemini-2.5-flash",
-        "gemini-1.5-flash" // 加入 1.5-flash 作為最終保底，它是目前最穩定的版本
+        "gemini-2.5-flash"
       ];
       let lastError = null;
       let data = null;
