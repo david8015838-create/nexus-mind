@@ -19,6 +19,9 @@ export const NexusProvider = ({ children }) => {
   const userProfile = useLiveQuery(() => 
     db.settings.get('userProfile')
   );
+  const customLinks = useLiveQuery(() => 
+    db.customLinks.toArray()
+  );
   const [currentContactId, setCurrentContactId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -156,6 +159,8 @@ export const NexusProvider = ({ children }) => {
 
       await commitInBatches('contacts', allContacts);
       await commitInBatches('schedules', allSchedules);
+      const allCustomLinks = await db.customLinks.toArray();
+      await commitInBatches('customLinks', allCustomLinks);
 
       console.log("Synced to cloud successfully (Mirror Mode)");
     } catch (error) {
@@ -227,6 +232,19 @@ export const NexusProvider = ({ children }) => {
       if (cloudSchedules.length > 0) {
         await db.schedules.clear();
         await db.schedules.bulkPut(cloudSchedules);
+      }
+
+      // 3. Sync Custom Links
+      const linksColRef = collection(firestore, 'users', currentUser.uid, 'customLinks');
+      const linksSnapshot = await getDocs(linksColRef);
+      const cloudLinks = [];
+      linksSnapshot.forEach(doc => {
+        cloudLinks.push(restoreDates(doc.data()));
+      });
+
+      if (cloudLinks.length > 0) {
+        await db.customLinks.clear();
+        await db.customLinks.bulkPut(cloudLinks);
       }
 
       console.log("Synced from cloud successfully (Mirror Mode)");
@@ -389,10 +407,26 @@ export const NexusProvider = ({ children }) => {
     if (currentUser) syncToCloud().catch(console.error);
   };
 
+  const addCustomLink = async (sourceId, targetId) => {
+    const id = `${sourceId}-${targetId}`;
+    // 防止重複連線
+    const exists = await db.customLinks.get(id);
+    if (!exists) {
+      await db.customLinks.add({ id, sourceId, targetId });
+      if (currentUser) syncToCloud().catch(console.error);
+    }
+  };
+
+  const deleteCustomLink = async (id) => {
+    await db.customLinks.delete(id);
+    if (currentUser) syncToCloud().catch(console.error);
+  };
+
   return (
     <NexusContext.Provider value={{
       contacts,
       schedules,
+      customLinks,
       currentContactId,
       setCurrentContactId,
       userProfile,
@@ -406,6 +440,8 @@ export const NexusProvider = ({ children }) => {
       addSchedule,
       updateSchedule,
       deleteSchedule,
+      addCustomLink,
+      deleteCustomLink,
       customPrompt,
       promptConfig,
       setPromptConfig,

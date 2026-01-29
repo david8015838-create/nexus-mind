@@ -4,7 +4,7 @@ import { useNexus } from '../context/NexusContext';
 import { useNavigate } from 'react-router-dom';
 
 const RelationshipGraph = () => {
-  const { contacts, userProfile, updateContactPosition } = useNexus();
+  const { contacts, userProfile, updateContactPosition, customLinks, addCustomLink, deleteCustomLink } = useNexus();
   const navigate = useNavigate();
   const graphRef = useRef();
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -12,6 +12,11 @@ const RelationshipGraph = () => {
 
   const [hoverNode, setHoverNode] = useState(null);
   const [imgCache, setImgCache] = useState({});
+
+  // 新增：連線模式狀態
+  const [isConnectMode, setIsConnectMode] = useState(false);
+  const [connectSource, setConnectSource] = useState(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   // 預載入圖片快取
   useEffect(() => {
@@ -82,35 +87,74 @@ const RelationshipGraph = () => {
       nodes.push(contactNode);
     });
 
-    // 3. 建立聯絡人之間的「自然引力連線」
-    // 邏輯：兩個人擁有的共同標籤越多，連線越短、引力越強
+    // 3. 建立聯絡人之間的「自然引力連線」與「手動連線」
+    // 邏輯：預設僅連線同分類的人，或手動建立的連線
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
         const n1 = nodes[i];
         const n2 = nodes[j];
         
+        // 檢查是否有手動建立的連線
+        const hasCustomLink = customLinks?.some(l => 
+          (l.sourceId === n1.id && l.targetId === n2.id) || 
+          (l.sourceId === n2.id && l.targetId === n1.id)
+        );
+
         const sharedTags = n1.tags.filter(t => n2.tags.includes(t));
         
-        if (sharedTags.length > 0) {
+        // 僅在有共同標籤（同分類）或有手動連線時才建立連線
+        if (sharedTags.length > 0 || hasCustomLink) {
           links.push({
+            id: hasCustomLink ? `custom-${n1.id}-${n2.id}` : `auto-${n1.id}-${n2.id}`,
             source: n1.id,
             target: n2.id,
-            // 共同標籤越多，連線越強
-            value: sharedTags.length * 2,
-            strength: sharedTags.length * 0.2,
-            distance: 150 / (sharedTags.length + 0.5),
-            color: n1.color, // 連線顏色跟隨其中一個節點
-            sharedTags: sharedTags
+            // 手動連線賦予更強的視覺表現
+            value: hasCustomLink ? 8 : sharedTags.length * 2,
+            strength: hasCustomLink ? 0.5 : sharedTags.length * 0.2,
+            distance: hasCustomLink ? 100 : 150 / (sharedTags.length + 0.5),
+            color: hasCustomLink ? '#ffffff' : n1.color, 
+            sharedTags: sharedTags,
+            isCustom: hasCustomLink
           });
         }
       }
     }
 
     return { nodes, links };
-  }, [contacts, filterTag]);
+  }, [contacts, filterTag, customLinks]);
+
+  const handleNodeClick = (node) => {
+    if (isConnectMode) {
+      if (!connectSource) {
+        setConnectSource(node);
+      } else if (connectSource.id !== node.id) {
+        // 建立連線
+        addCustomLink(connectSource.id, node.id);
+        setConnectSource(null);
+        // 如果想建立完就關閉模式可以 setIsConnectMode(false)
+      } else {
+        setConnectSource(null);
+      }
+      return;
+    }
+
+    // 手機端邏輯：第一次點擊選取，第二次進入
+    if (hoverNode && hoverNode.id === node.id) {
+      navigate(`/profile/${node.id}`);
+    } else {
+      setHoverNode(node);
+    }
+  };
 
   return (
-    <div className="w-full h-full bg-[#050507] relative overflow-hidden">
+    <div 
+      className="w-full h-full bg-[#050507] relative overflow-hidden"
+      onMouseMove={(e) => {
+        if (isConnectMode && connectSource) {
+          setMousePos({ x: e.clientX, y: e.clientY });
+        }
+      }}
+    >
       {/* 增加背景星空效果 */}
       <div className="absolute inset-0 pointer-events-none opacity-30">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,#1a1a2e_0%,transparent_100%)]"></div>
@@ -164,6 +208,23 @@ const RelationshipGraph = () => {
       </div>
 
       <div className="w-full h-full">
+        {/* 連線模式下的預覽線 */}
+        {isConnectMode && connectSource && (
+          <svg className="absolute inset-0 pointer-events-none z-30 w-full h-full">
+            <line 
+              x1={graphRef.current?.nodeRelSize ? graphRef.current.nodeCanvasObject ? dimensions.width/2 : 0 : 0} 
+              y1={0} 
+              x2={0} 
+              y2={0} 
+              stroke="white" 
+              strokeWidth="2" 
+              strokeDasharray="5,5"
+              className="animate-pulse"
+            />
+            {/* 這裡我們改用更簡單的方式：在 Canvas 繪製中處理，或者直接用一個跟隨鼠標的 div */}
+          </svg>
+        )}
+
         <ForceGraph2D
           ref={graphRef}
           graphData={graphData}
@@ -171,15 +232,13 @@ const RelationshipGraph = () => {
           height={dimensions.height}
           backgroundColor="transparent"
           nodeRelSize={4}
-          onNodeClick={(node) => {
-            // 手機端邏輯：第一次點擊選取，第二次進入
-            if (hoverNode && hoverNode.id === node.id) {
-              navigate(`/profile/${node.id}`);
-            } else {
-              setHoverNode(node);
+          onNodeClick={handleNodeClick}
+          onBackgroundClick={() => {
+            setHoverNode(null);
+            if (isConnectMode) {
+              setConnectSource(null);
             }
           }}
-          onBackgroundClick={() => setHoverNode(null)}
           onNodeHover={node => {
             if (node) setHoverNode(node);
           }}
@@ -194,7 +253,7 @@ const RelationshipGraph = () => {
           d3VelocityDecay={0.3}
           d3Force={(forceName, force) => {
             if (forceName === 'charge') {
-              force.strength(-500).distanceMax(500); 
+              force.strength(-500).distanceMax(1000); 
             }
             if (forceName === 'link') {
               force.distance(link => link.distance); 
@@ -202,7 +261,7 @@ const RelationshipGraph = () => {
             }
             if (forceName === 'collision') {
               // 增加碰撞力，防止節點重疊
-              force.radius(node => (node.val * 2) + 10);
+              force.radius(node => (node.val * 2) + 20);
             }
           }}
           linkCanvasObject={(link, ctx, globalScale) => {
@@ -226,30 +285,45 @@ const RelationshipGraph = () => {
 
             // 繪製粒子流連線
             const time = Date.now() * 0.001;
-            const opacity = isRelated ? 0.8 : 0.2;
+            const opacity = isRelated ? 0.8 : (link.isCustom ? 0.6 : 0.2);
             
             ctx.beginPath();
             const gradient = ctx.createLinearGradient(sx, sy, tx, ty);
-            gradient.addColorStop(0, `${link.color}00`);
-            gradient.addColorStop(0.5, `${link.color}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`);
-            gradient.addColorStop(1, `${link.color}00`);
+            
+            if (link.isCustom) {
+              gradient.addColorStop(0, `rgba(255, 255, 255, 0)`);
+              gradient.addColorStop(0.5, `rgba(255, 255, 255, ${opacity})`);
+              gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
+            } else {
+              gradient.addColorStop(0, `${link.color}00`);
+              gradient.addColorStop(0.5, `${link.color}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`);
+              gradient.addColorStop(1, `${link.color}00`);
+            }
             
             ctx.strokeStyle = gradient;
-            ctx.lineWidth = (isRelated ? 3 : 1) / Math.max(0.5, globalScale);
+            ctx.lineWidth = (isRelated || link.isCustom ? 3 : 1) / Math.max(0.5, globalScale);
             ctx.moveTo(sx, sy);
             ctx.lineTo(tx, ty);
             ctx.stroke();
 
             // 繪製流動的小粒子
-            if (isRelated) {
+            if (isRelated || link.isCustom) {
               const particlePos = (time % 1);
               const px = sx + (tx - sx) * particlePos;
               const py = sy + (ty - sy) * particlePos;
               
-              ctx.fillStyle = '#ffffff';
+              ctx.fillStyle = link.isCustom ? '#ffffff' : link.color;
               ctx.beginPath();
-              ctx.arc(px, py, 2 / globalScale, 0, 2 * Math.PI);
+              ctx.arc(px, py, (link.isCustom ? 3 : 2) / globalScale, 0, 2 * Math.PI);
               ctx.fill();
+              
+              // 為手動連線增加發光粒子
+              if (link.isCustom) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ffffff';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+              }
             }
           }}
           nodeCanvasObject={(node, ctx, globalScale) => {
@@ -357,7 +431,32 @@ const RelationshipGraph = () => {
       </div>
 
       <div className="absolute bottom-44 right-6 flex flex-col gap-2 z-10">
-        {hoverNode && hoverNode.isContact && (
+        <button 
+          onClick={() => {
+            setIsConnectMode(!isConnectMode);
+            setConnectSource(null);
+          }}
+          className={`size-12 rounded-2xl border flex items-center justify-center transition-all active:scale-90 ${
+            isConnectMode 
+              ? 'bg-primary border-primary text-white shadow-lg shadow-primary/30' 
+              : 'bg-white/5 border-white/10 text-white/40'
+          }`}
+          title={isConnectMode ? "關閉連線模式" : "開啟連線模式"}
+        >
+          <span className="material-symbols-outlined text-[20px]">
+            {isConnectMode ? 'link_off' : 'add_link'}
+          </span>
+        </button>
+
+        {isConnectMode && (
+          <div className="h-12 px-6 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white text-[12px] font-black uppercase tracking-wider flex items-center justify-center shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+            {connectSource 
+              ? `正在連線 ${connectSource.name} ... 點擊目標聯絡人` 
+              : '請選擇第一個聯絡人開始建立連線'}
+          </div>
+        )}
+
+        {hoverNode && hoverNode.isContact && !isConnectMode && (
           <button 
             onClick={() => navigate(`/profile/${hoverNode.id}`)}
             className="h-12 px-6 rounded-2xl bg-primary text-white text-[12px] font-black uppercase tracking-wider flex items-center justify-center shadow-lg shadow-primary/30 animate-in fade-in slide-in-from-bottom-4 duration-300"

@@ -2,10 +2,11 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('NexusMindDB');
 
-db.version(4).stores({
+db.version(5).stores({
   contacts: 'id, name, ocrText, phone, email, company, *tags, lastUpdated',
   settings: 'id',
-  schedules: 'id, title, date, *contactIds, type'
+  schedules: 'id, title, date, *contactIds, type',
+  customLinks: 'id, sourceId, targetId'
 });
 
 // Seed function removed as per user request
