@@ -10,6 +10,7 @@ const MemoryFeed = () => {
   const { contacts, addContact, updateContact, addMemory, userProfile, updateProfile, customPrompt, schedules, currentUser, login } = useNexus();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [scanningStatus, setScanningStatus] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -469,7 +470,7 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
               <div className="absolute inset-0 bg-primary/20 blur-2xl animate-pulse"></div>
               <div className="animate-spin rounded-full h-12 w-12 border-2 border-primary border-t-transparent relative z-10"></div>
             </div>
-            <span className="mt-4 text-sm font-medium text-white/40 animate-pulse">正在透過神經網路分析名片...</span>
+            <span className="mt-4 text-sm font-medium text-white/40 animate-pulse">{scanningStatus || '正在透過神經網路分析名片...'}</span>
           </div>
         )}
         
