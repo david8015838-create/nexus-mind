@@ -208,14 +208,9 @@ const MemoryFeed = () => {
 
       // 2. 初始化 Gemini AI
       const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
-      keyStatus = apiKey 
-        ? `已讀取 (前4碼: ${apiKey.substring(0, 4)}..., 長度: ${apiKey.length})` 
-        : "未讀取 (Empty)";
       
-      console.log(`🔑 API Key 狀態: ${keyStatus}`);
-
       if (!apiKey) {
-        throw new Error("找不到 API Key，請檢查 .env 或 GitHub Secrets 設定 (VITE_GEMINI_API_KEY)");
+        throw new Error("找不到 API Key，請檢查設定");
       }
 
       const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
@@ -241,14 +236,15 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       console.log("📡 開始模型嘗試迴圈...");
       for (const baseName of modelNames) {
         // 更新 UI 狀態，讓使用者知道正在嘗試哪個模型
-        setScanningStatus(`正在透過 ${baseName} 進行神經分析...`);
+        setScanningStatus(`正在透過 ${baseName} 進行分析...`);
         
+        let modelSuccess = false;
         // 嘗試多種可能的路徑格式
         const formats = [baseName, `models/${baseName}`];
         for (const modelId of formats) {
+          if (modelSuccess) break;
           try {
             triedModels.push(modelId);
-            console.log(`🚀 嘗試模型: ${modelId}...`);
             const model = genAI.getGenerativeModel({ model: modelId });
             
             // 加入 30 秒超時控制
@@ -258,46 +254,32 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
             ]);
 
             const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error("Request Timeout (30s)")), 30000)
+              setTimeout(() => reject(new Error("Request Timeout")), 30000)
             );
 
             const result = await Promise.race([resultPromise, timeoutPromise]);
-            
-            console.log(`📡 ${modelId} 請求完成，正在解析回應...`);
-            
-            // 檢查回應是否包含有效的 content
             const response = await result.response;
             if (!response) throw new Error("Empty Response");
             
-            console.log(`📡 ${modelId} 回應內容已取得，開始進行安全檢查...`);
-            
-            // 2026 年 SDK 的安全檢查：確保 candidate 存在
             const candidates = response.candidates || [];
             if (candidates.length === 0) {
-              // 檢查是否被安全過濾器攔截
               const feedback = response.promptFeedback;
-              console.warn(`⚠️ ${modelId} 無候選回應。Feedback:`, feedback);
               if (feedback && feedback.blockReason) {
-                throw new Error(`安全性攔截: ${feedback.blockReason}`);
+                throw new Error(`Security Block: ${feedback.blockReason}`);
               }
-              throw new Error("模型未回傳任何結果 (可能是地區限制或內容過濾)");
+              throw new Error("No Result");
             }
             
             extractedText = response.text();
-            console.log(`📥 ${modelId} 回傳內容長度: ${extractedText?.length || 0}`);
-
             if (extractedText) {
               const cleanJson = extractedText.replace(/```json|```/g, '').trim();
               data = JSON.parse(cleanJson);
-              console.log(`✅ ${modelId} 解析成功！`);
+              modelSuccess = true;
               break; 
             }
           } catch (e) {
-            console.warn(`❌ ${modelId} 失敗:`, e.message);
             lastError = e;
-            // 如果是 404 (模型不存在) 或 403 (權限錯誤)，直接跳過該系列
             if (e.message?.includes('404') || e.message?.includes('403') || e.message?.includes('401')) {
-              console.error(`🛑 偵測到嚴重錯誤 (${e.message})，跳過此模型。`);
               break;
             }
           }
@@ -345,7 +327,7 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         errorReason = "找不到指定的 AI 模型，可能該版本已停用。";
       }
 
-      alert(`【辨識失敗】${errorReason}\n\n🔍 診斷資訊：\n金鑰狀態: ${keyStatus}\n狀態碼: ${errorStatus}\n嘗試模型: ${triedModels.join(', ')}`);
+      alert(`【辨識失敗】${errorReason}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
