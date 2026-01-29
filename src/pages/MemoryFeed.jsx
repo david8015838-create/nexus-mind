@@ -171,8 +171,8 @@ const MemoryFeed = () => {
             img.src = event.target.result;
             img.onload = () => {
               const canvas = document.createElement('canvas');
-              const MAX_WIDTH = 1200;
-              const MAX_HEIGHT = 1200;
+              const MAX_WIDTH = 1024;
+              const MAX_HEIGHT = 1024;
               let width = img.width;
               let height = img.height;
 
@@ -193,7 +193,7 @@ const MemoryFeed = () => {
               const ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, width, height);
               
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
               resolve(dataUrl);
             };
             img.onerror = () => reject(new Error("圖片載入失敗，請嘗試其他檔案。"));
@@ -211,8 +211,9 @@ const MemoryFeed = () => {
       keyStatus = apiKey 
         ? `已讀取 (前4碼: ${apiKey.substring(0, 4)}..., 長度: ${apiKey.length})` 
         : "未讀取 (Empty)";
-      console.log(`🔑 API Key 狀態: ${keyStatus}`);
       
+      console.log(`🔑 API Key 狀態: ${keyStatus}`);
+
       if (!apiKey) {
         throw new Error("找不到 API Key，請檢查 .env 或 GitHub Secrets 設定 (VITE_GEMINI_API_KEY)");
       }
@@ -227,12 +228,9 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 使用穩定性最高的模型作為優先嘗試
+      // 鎖定 2026 年最新主流模型，移除過時版本以避免觸發 API 安全攔截
       const modelNames = [
-        "gemini-1.5-flash", 
-        "gemini-1.5-pro",
-        "gemini-2.0-flash-exp", 
-        "gemini-3.0-flash", 
+        "gemini-3-flash-preview", 
         "gemini-2.5-flash"
       ];
       let lastError = null;
@@ -316,22 +314,18 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       
       // 提取更深層的錯誤訊息
       const errorStatus = error.status || (error.message?.match(/\d{3}/) ? error.message.match(/\d{3}/)[0] : 'Unknown');
-      const errorReason = error.message || '無詳細訊息';
-      
-      let errorMsg = '辨識失敗，請確認網路連線正常。';
-      
-      if (errorStatus === '429') {
-        errorMsg = '【額度限制】API 請求頻率太快或當日額度已滿。';
-      } else if (errorStatus === '403') {
-        errorMsg = '【權限拒絕】可能原因：1. API Key 無效 2. 所在地區不支援 3. 尚未在 Google AI Studio 開啟此模型權限。';
-      } else if (errorStatus === '400') {
-        errorMsg = '【請求錯誤】圖片可能太模糊、格式不正確，或觸發了安全過濾機制。';
-      } else if (errorReason.includes('fetch')) {
-        errorMsg = '【網路阻斷】無法連接至 Google API，請檢查 VPN 或網路設定。';
+      let errorReason = error.message || '無詳細訊息';
+
+      // 針對常見錯誤進行友善化處理
+       if (errorReason.includes('403') || errorReason.includes('PERMISSION_DENIED')) {
+         errorReason = "API 權限遭拒。請檢查：\n1. Google Cloud Console 是否正確設定「網頁來源限制 (Referrer Restrictions)」\n2. API 限制是否已勾選 Generative Language API\n3. 您的所在地區是否支援 (若在中國/港澳需開啟海外 VPN)";
+       } else if (errorReason.includes('429') || errorReason.includes('RESOURCE_EXHAUSTED')) {
+        errorReason = "請求太頻繁，請稍等一分鐘後再試。";
+      } else if (errorReason.includes('404')) {
+        errorReason = "找不到指定的 AI 模型，可能該版本已停用。";
       }
-      
-      const advice = errorStatus === '403' ? '\n\n💡 建議：如果您有開啟 VPN，請試著關閉它，或更換至台灣 IP 試試看。' : '';
-      alert(`${errorMsg}${advice}\n\n🔍 診斷資訊：\n金鑰狀態: ${keyStatus}\n狀態碼: ${errorStatus}\n具體原因: ${errorReason.substring(0, 200)}`);
+
+      alert(`【辨識失敗】${errorReason}\n\n🔍 診斷資訊：\n金鑰狀態: ${keyStatus}\n狀態碼: ${errorStatus}\n嘗試模型: ${triedModels.join(', ')}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
