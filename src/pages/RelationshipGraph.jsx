@@ -96,17 +96,31 @@ const RelationshipGraph = () => {
         const n2 = nodes[j];
         
         // 檢查是否有手動建立的連線
-        const hasCustomLink = customLinks?.some(l => 
+        const customLink = customLinks?.find(l => 
           (l.sourceId === n1.id && l.targetId === n2.id) || 
           (l.sourceId === n2.id && l.targetId === n1.id)
         );
+        const hasCustomLink = !!customLink;
 
+        // 只有「全部」模式下才考慮 sharedTags，且必須大於 0
+        // 如果是特定標籤模式，則只顯示該標籤內的連線
         const sharedTags = n1.tags.filter(t => n2.tags.includes(t));
         
-        // 僅在有共同標籤（同分類）或有手動連線時才建立連線
-        if (sharedTags.length > 0 || hasCustomLink) {
+        // 嚴格過濾：
+        // 1. 如果有手動連線，一定顯示
+        // 2. 如果沒有手動連線，則必須：
+        //    a. filterTag 為 '全部' 且有共同標籤
+        //    b. 或 filterTag 不為 '全部'，且兩人都包含該標籤
+        let shouldShowAutoLink = false;
+        if (filterTag === '全部') {
+          shouldShowAutoLink = sharedTags.length > 0;
+        } else {
+          shouldShowAutoLink = n1.tags.includes(filterTag) && n2.tags.includes(filterTag);
+        }
+
+        if (hasCustomLink || shouldShowAutoLink) {
           links.push({
-            id: hasCustomLink ? `custom-${n1.id}-${n2.id}` : `auto-${n1.id}-${n2.id}`,
+            id: hasCustomLink ? customLink.id : `auto-${n1.id}-${n2.id}`,
             source: n1.id,
             target: n2.id,
             // 手動連線賦予更強的視覺表現
@@ -478,7 +492,7 @@ const RelationshipGraph = () => {
         {selectedLink && (
           <button 
             onClick={() => {
-              deleteCustomLink(selectedLink.id.replace('custom-', ''));
+              deleteCustomLink(selectedLink.id);
               setSelectedLink(null);
             }}
             className="h-12 px-6 rounded-2xl bg-red-500 text-white text-[12px] font-black uppercase tracking-wider flex items-center justify-center shadow-lg shadow-red-500/30 animate-in fade-in slide-in-from-bottom-4 duration-300"
