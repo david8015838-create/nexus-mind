@@ -188,13 +188,23 @@ const RelationshipGraph = () => {
           linkColor={link => link.color}
           linkWidth={link => link.value}
           onNodeClick={(node) => {
-            if (node.isCategory) {
-              setFilterTag(node.name);
+            // 手機端邏輯：第一次點擊選取（顯示關係），第二次點擊進入
+            if (hoverNode && hoverNode.id === node.id) {
+              if (node.isCategory) {
+                setFilterTag(node.name);
+                setHoverNode(null);
+              } else {
+                navigate(`/profile/${node.id}`);
+              }
             } else {
-              navigate(`/profile/${node.id}`);
+              setHoverNode(node);
             }
           }}
-          onNodeHover={node => setHoverNode(node)}
+          onBackgroundClick={() => setHoverNode(null)}
+          onNodeHover={node => {
+            // 保留滑鼠懸停功能，但在觸控裝置上主要靠 click
+            if (node) setHoverNode(node);
+          }}
           onNodeDragEnd={node => {
             node.fx = node.x;
             node.fy = node.y;
@@ -341,6 +351,14 @@ const RelationshipGraph = () => {
       </div>
 
       <div className="absolute bottom-44 right-6 flex flex-col gap-2 z-10">
+        {hoverNode && hoverNode.isContact && (
+          <button 
+            onClick={() => navigate(`/profile/${hoverNode.id}`)}
+            className="h-12 px-6 rounded-2xl bg-primary text-white text-[12px] font-black uppercase tracking-wider flex items-center justify-center shadow-lg shadow-primary/30 animate-in fade-in slide-in-from-bottom-4 duration-300"
+          >
+            查看 {hoverNode.name}
+          </button>
+        )}
         <button 
           onClick={() => graphRef.current.zoomToFit(400)}
           className="size-12 rounded-2xl bg-white/5 border border-white/10 text-white/40 flex items-center justify-center hover:bg-white/10 transition-all active:scale-90"
