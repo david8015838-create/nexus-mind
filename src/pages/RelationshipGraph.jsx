@@ -11,6 +11,7 @@ const RelationshipGraph = () => {
   const [filterTag, setFilterTag] = useState('全部');
 
   const [hoverNode, setHoverNode] = useState(null);
+  const [selectedLink, setSelectedLink] = useState(null);
   const [imgCache, setImgCache] = useState({});
 
   // 新增：連線模式狀態
@@ -232,9 +233,17 @@ const RelationshipGraph = () => {
           height={dimensions.height}
           backgroundColor="transparent"
           nodeRelSize={4}
+          linkPointerAreaRadius={10}
           onNodeClick={handleNodeClick}
+          onLinkClick={(link) => {
+            if (link.isCustom) {
+              setSelectedLink(link);
+              setHoverNode(null);
+            }
+          }}
           onBackgroundClick={() => {
             setHoverNode(null);
+            setSelectedLink(null);
             if (isConnectMode) {
               setConnectSource(null);
             }
@@ -271,10 +280,15 @@ const RelationshipGraph = () => {
             const sourceId = getID(link.source);
             const targetId = getID(link.target);
             const hoverId = hoverNode ? hoverNode.id : null;
+            const isSelected = selectedLink && (
+              (getID(selectedLink.source) === sourceId && getID(selectedLink.target) === targetId) ||
+              (getID(selectedLink.source) === targetId && getID(selectedLink.target) === sourceId)
+            );
 
-            const isRelated = hoverId && (sourceId === hoverId || targetId === hoverId);
+            const isRelated = (hoverId && (sourceId === hoverId || targetId === hoverId)) || isSelected;
             
-            if (hoverId && !isRelated) return; // 非相關連線在選取時完全隱藏
+            if (hoverId && !isRelated && !isSelected) return; // 非相關連線在選取時完全隱藏
+            if (selectedLink && !isSelected) return; // 選取特定連線時隱藏其他連線
 
             const sx = link.source.x;
             const sy = link.source.y;
@@ -285,15 +299,16 @@ const RelationshipGraph = () => {
 
             // 繪製粒子流連線
             const time = Date.now() * 0.001;
-            const opacity = isRelated ? 0.8 : (link.isCustom ? 0.6 : 0.2);
+            const opacity = isSelected ? 1.0 : (isRelated ? 0.8 : (link.isCustom ? 0.6 : 0.2));
             
             ctx.beginPath();
             const gradient = ctx.createLinearGradient(sx, sy, tx, ty);
             
-            if (link.isCustom) {
-              gradient.addColorStop(0, `rgba(255, 255, 255, 0)`);
-              gradient.addColorStop(0.5, `rgba(255, 255, 255, ${opacity})`);
-              gradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
+            if (link.isCustom || isSelected) {
+              const color = isSelected ? '#ef4444' : '#ffffff'; // 選取時變紅
+              gradient.addColorStop(0, `rgba(${isSelected ? '239, 68, 68' : '255, 255, 255'}, 0)`);
+              gradient.addColorStop(0.5, `rgba(${isSelected ? '239, 68, 68' : '255, 255, 255'}, ${opacity})`);
+              gradient.addColorStop(1, `rgba(${isSelected ? '239, 68, 68' : '255, 255, 255'}, 0)`);
             } else {
               gradient.addColorStop(0, `${link.color}00`);
               gradient.addColorStop(0.5, `${link.color}${Math.floor(opacity * 255).toString(16).padStart(2, '0')}`);
@@ -301,26 +316,26 @@ const RelationshipGraph = () => {
             }
             
             ctx.strokeStyle = gradient;
-            ctx.lineWidth = (isRelated || link.isCustom ? 3 : 1) / Math.max(0.5, globalScale);
+            ctx.lineWidth = (isRelated || link.isCustom || isSelected ? 4 : 1) / Math.max(0.5, globalScale);
             ctx.moveTo(sx, sy);
             ctx.lineTo(tx, ty);
             ctx.stroke();
 
             // 繪製流動的小粒子
-            if (isRelated || link.isCustom) {
+            if (isRelated || link.isCustom || isSelected) {
               const particlePos = (time % 1);
               const px = sx + (tx - sx) * particlePos;
               const py = sy + (ty - sy) * particlePos;
               
-              ctx.fillStyle = link.isCustom ? '#ffffff' : link.color;
+              ctx.fillStyle = isSelected ? '#ef4444' : (link.isCustom ? '#ffffff' : link.color);
               ctx.beginPath();
-              ctx.arc(px, py, (link.isCustom ? 3 : 2) / globalScale, 0, 2 * Math.PI);
+              ctx.arc(px, py, (link.isCustom || isSelected ? 3 : 2) / globalScale, 0, 2 * Math.PI);
               ctx.fill();
               
               // 為手動連線增加發光粒子
-              if (link.isCustom) {
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = '#ffffff';
+              if (link.isCustom || isSelected) {
+                ctx.shadowBlur = isSelected ? 15 : 10;
+                ctx.shadowColor = isSelected ? '#ef4444' : '#ffffff';
                 ctx.fill();
                 ctx.shadowBlur = 0;
               }
@@ -375,10 +390,14 @@ const RelationshipGraph = () => {
               ctx.fillStyle = '#1a1a2e';
               ctx.fill();
               ctx.fillStyle = node.color;
-              ctx.font = `bold ${size}px "Inter"`;
+              
+              // 繪製全名，根據長度調整字型大小
+              const name = node.name || 'Unknown';
+              const fontSize = Math.max(4, size * 2 / (name.length > 3 ? name.length * 0.7 : 2));
+              ctx.font = `bold ${fontSize}px "Inter"`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText(node.name.charAt(0), node.x, node.y);
+              ctx.fillText(name, node.x, node.y);
             }
             ctx.restore();
 
@@ -454,6 +473,19 @@ const RelationshipGraph = () => {
               ? `正在連線 ${connectSource.name} ... 點擊目標聯絡人` 
               : '請選擇第一個聯絡人開始建立連線'}
           </div>
+        )}
+
+        {selectedLink && (
+          <button 
+            onClick={() => {
+              deleteCustomLink(selectedLink.id.replace('custom-', ''));
+              setSelectedLink(null);
+            }}
+            className="h-12 px-6 rounded-2xl bg-red-500 text-white text-[12px] font-black uppercase tracking-wider flex items-center justify-center shadow-lg shadow-red-500/30 animate-in fade-in slide-in-from-bottom-4 duration-300"
+          >
+            <span className="material-symbols-outlined mr-2 text-[18px]">link_off</span>
+            刪除此連線
+          </button>
         )}
 
         {hoverNode && hoverNode.isContact && !isConnectMode && (
