@@ -14,6 +14,18 @@ const RelationshipGraph = () => {
   const [selectedLink, setSelectedLink] = useState(null);
   const [lastClickTime, setLastClickTime] = useState(0);
   const [imgCache, setImgCache] = useState({});
+  const [frame, setFrame] = useState(0);
+
+  // 強制持續重繪以維持動畫
+  useEffect(() => {
+    let requestRef;
+    const animate = () => {
+      setFrame(f => f + 1);
+      requestRef = requestAnimationFrame(animate);
+    };
+    requestRef = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(requestRef);
+  }, []);
 
   // 新增：連線模式狀態
   const [isConnectMode, setIsConnectMode] = useState(false);
@@ -374,15 +386,15 @@ const RelationshipGraph = () => {
               return (sId === node.id && tId === hoverNode.id) || (tId === node.id && sId === hoverNode.id);
             });
 
-            // 呼吸感邏輯 - 增加隨機偏移讓每個點呼吸不同步，更有自然感
+            // 呼吸感邏輯 - 顯著增強縮放與頻率
             const seed = (node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 100;
-            const time = (Date.now() + seed * 100) * 0.002;
-            const breath = Math.sin(time) * 0.12 + 1; // 0.88 ~ 1.12 之間的縮放
-            const glowBreath = Math.sin(time * 1.2) * 0.3 + 0.7; // 0.4 ~ 1.0 之間的發光
+            const time = (Date.now() + seed * 100) * 0.003; // 加快頻率
+            const breath = Math.sin(time) * 0.25 + 1.1; // 0.85 ~ 1.35 之間的縮放，基礎設為 1.1 讓它偏大
+            const glowBreath = Math.sin(time * 1.5) * 0.4 + 0.6; // 0.2 ~ 1.0 之間的發光感更強
 
             const safeScale = Math.max(0.1, globalScale);
-            const baseSize = (8 + (node.importance / 20)) * breath;
-            const size = (isHovered ? baseSize * 1.8 : (isRelated ? baseSize * 1.3 : baseSize)) / safeScale;
+            const baseSize = (10 + (node.importance / 15)) * breath; // 增大基礎尺寸
+            const size = (isHovered ? baseSize * 1.6 : (isRelated ? baseSize * 1.2 : baseSize)) / safeScale;
             
             if (node.x === undefined || node.y === undefined) return;
 
