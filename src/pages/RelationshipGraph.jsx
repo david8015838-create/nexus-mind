@@ -110,10 +110,16 @@ const RelationshipGraph = () => {
         // 嚴格過濾：
         // 1. 如果有手動連線，一定顯示
         // 2. 如果沒有手動連線，則必須：
-        //    a. filterTag 不為 '全部'，且兩人都包含該標籤
-        //    b. 如果 filterTag 是 '全部'，則不顯示任何自動連線 (確保不同類別的人不串在一起)
+        //    a. 兩個人擁有的共同標籤中，包含任一主要分類標籤
+        const mainCategories = categories.filter(c => c !== '全部');
+        const hasSharedMainCategory = sharedTags.some(t => mainCategories.includes(t));
+        
         let shouldShowAutoLink = false;
-        if (filterTag !== '全部') {
+        if (filterTag === '全部') {
+          // 在全部視角下，只連起具有共同「主要分類標籤」的人
+          shouldShowAutoLink = hasSharedMainCategory;
+        } else {
+          // 在特定分類下，只連起該分類內的人
           shouldShowAutoLink = n1.tags.includes(filterTag) && n2.tags.includes(filterTag);
         }
 
@@ -368,10 +374,11 @@ const RelationshipGraph = () => {
               return (sId === node.id && tId === hoverNode.id) || (tId === node.id && sId === hoverNode.id);
             });
 
-            // 呼吸感邏輯
-            const time = Date.now() * 0.002;
-            const breath = Math.sin(time) * 0.15 + 1; // 0.85 ~ 1.15 之間的縮放
-            const glowBreath = Math.sin(time * 1.5) * 0.3 + 0.7; // 0.4 ~ 1.0 之間的發光
+            // 呼吸感邏輯 - 增加隨機偏移讓每個點呼吸不同步，更有自然感
+            const seed = (node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 100;
+            const time = (Date.now() + seed * 100) * 0.002;
+            const breath = Math.sin(time) * 0.12 + 1; // 0.88 ~ 1.12 之間的縮放
+            const glowBreath = Math.sin(time * 1.2) * 0.3 + 0.7; // 0.4 ~ 1.0 之間的發光
 
             const safeScale = Math.max(0.1, globalScale);
             const baseSize = (8 + (node.importance / 20)) * breath;
