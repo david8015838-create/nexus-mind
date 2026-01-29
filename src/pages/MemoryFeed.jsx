@@ -227,11 +227,11 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 使用使用者指定的模型版本
+      // 使用穩定性最高的模型作為優先嘗試
       const modelNames = [
-        "gemini-2.0-flash-exp", 
         "gemini-1.5-flash", 
         "gemini-1.5-pro",
+        "gemini-2.0-flash-exp", 
         "gemini-3.0-flash", 
         "gemini-2.5-flash"
       ];
@@ -323,14 +323,15 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       if (errorStatus === '429') {
         errorMsg = '【額度限制】API 請求頻率太快或當日額度已滿。';
       } else if (errorStatus === '403') {
-        errorMsg = '【權限拒絕】API Key 無效、權限未開啟，或所在地區不支援。';
+        errorMsg = '【權限拒絕】可能原因：1. API Key 無效 2. 所在地區不支援 3. 尚未在 Google AI Studio 開啟此模型權限。';
       } else if (errorStatus === '400') {
-        errorMsg = '【請求錯誤】圖片可能太模糊或格式不正確。';
+        errorMsg = '【請求錯誤】圖片可能太模糊、格式不正確，或觸發了安全過濾機制。';
       } else if (errorReason.includes('fetch')) {
         errorMsg = '【網路阻斷】無法連接至 Google API，請檢查 VPN 或網路設定。';
       }
       
-      alert(`${errorMsg}\n\n🔍 診斷資訊：\n金鑰狀態: ${keyStatus}\n狀態碼: ${errorStatus}\n具體原因: ${errorReason.substring(0, 200)}`);
+      const advice = errorStatus === '403' ? '\n\n💡 建議：如果您有開啟 VPN，請試著關閉它，或更換至台灣 IP 試試看。' : '';
+      alert(`${errorMsg}${advice}\n\n🔍 診斷資訊：\n金鑰狀態: ${keyStatus}\n狀態碼: ${errorStatus}\n具體原因: ${errorReason.substring(0, 200)}`);
     } finally {
       setIsScanning(false);
       setIsFabOpen(false);
