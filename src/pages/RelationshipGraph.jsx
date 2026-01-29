@@ -12,6 +12,7 @@ const RelationshipGraph = () => {
 
   const [hoverNode, setHoverNode] = useState(null);
   const [selectedLink, setSelectedLink] = useState(null);
+  const [lastClickTime, setLastClickTime] = useState(0);
   const [imgCache, setImgCache] = useState({});
 
   // 新增：連線模式狀態
@@ -109,12 +110,10 @@ const RelationshipGraph = () => {
         // 嚴格過濾：
         // 1. 如果有手動連線，一定顯示
         // 2. 如果沒有手動連線，則必須：
-        //    a. filterTag 為 '全部' 且有共同標籤
-        //    b. 或 filterTag 不為 '全部'，且兩人都包含該標籤
+        //    a. filterTag 不為 '全部'，且兩人都包含該標籤
+        //    b. 如果 filterTag 是 '全部'，則不顯示任何自動連線 (確保不同類別的人不串在一起)
         let shouldShowAutoLink = false;
-        if (filterTag === '全部') {
-          shouldShowAutoLink = sharedTags.length > 0;
-        } else {
+        if (filterTag !== '全部') {
           shouldShowAutoLink = n1.tags.includes(filterTag) && n2.tags.includes(filterTag);
         }
 
@@ -146,19 +145,24 @@ const RelationshipGraph = () => {
         // 建立連線
         addCustomLink(connectSource.id, node.id);
         setConnectSource(null);
-        // 如果想建立完就關閉模式可以 setIsConnectMode(false)
       } else {
         setConnectSource(null);
       }
       return;
     }
 
-    // 手機端邏輯：第一次點擊選取，第二次進入
-    if (hoverNode && hoverNode.id === node.id) {
+    const now = Date.now();
+    const DOUBLE_CLICK_DELAY = 300; // 300ms 判定為雙擊
+
+    if (hoverNode && hoverNode.id === node.id && (now - lastClickTime) < DOUBLE_CLICK_DELAY) {
+      // 雙擊：開啟檔案
       navigate(`/profile/${node.id}`);
     } else {
+      // 單擊：僅選取
       setHoverNode(node);
+      setSelectedLink(null);
     }
+    setLastClickTime(now);
   };
 
   return (
@@ -364,8 +368,13 @@ const RelationshipGraph = () => {
               return (sId === node.id && tId === hoverNode.id) || (tId === node.id && sId === hoverNode.id);
             });
 
+            // 呼吸感邏輯
+            const time = Date.now() * 0.002;
+            const breath = Math.sin(time) * 0.15 + 1; // 0.85 ~ 1.15 之間的縮放
+            const glowBreath = Math.sin(time * 1.5) * 0.3 + 0.7; // 0.4 ~ 1.0 之間的發光
+
             const safeScale = Math.max(0.1, globalScale);
-            const baseSize = 8 + (node.importance / 20);
+            const baseSize = (8 + (node.importance / 20)) * breath;
             const size = (isHovered ? baseSize * 1.8 : (isRelated ? baseSize * 1.3 : baseSize)) / safeScale;
             
             if (node.x === undefined || node.y === undefined) return;
@@ -382,13 +391,15 @@ const RelationshipGraph = () => {
             }
 
             // 2. 背景發光 (Glow)
-            const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, size * 3);
-            const alpha = isHovered ? '40' : (isRelated ? '20' : '10');
+            const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, size * 3.5);
+            const alphaVal = isHovered ? 0.5 : (isRelated ? 0.3 : 0.15);
+            const alpha = Math.floor(alphaVal * glowBreath * 255).toString(16).padStart(2, '0');
+            
             gradient.addColorStop(0, `${node.color}${alpha}`);
             gradient.addColorStop(1, 'transparent');
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(node.x, node.y, size * 3, 0, 2 * Math.PI);
+            ctx.arc(node.x, node.y, size * 3.5, 0, 2 * Math.PI);
             ctx.fill();
 
             // 3. 頭像繪製
@@ -421,6 +432,14 @@ const RelationshipGraph = () => {
             ctx.beginPath();
             ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
             ctx.stroke();
+
+            // 5. 發光點綴
+            if (isHovered) {
+              ctx.shadowBlur = 15 * glowBreath;
+              ctx.shadowColor = '#ffffff';
+              ctx.stroke();
+              ctx.shadowBlur = 0;
+            }
 
             // 5. 標籤
             if (isHovered || safeScale > 1.2) {
