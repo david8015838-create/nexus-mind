@@ -202,10 +202,10 @@ const RelationshipGraph = () => {
             style={{
               top: `${Math.random() * 100}%`,
               left: `${Math.random() * 100}%`,
-              width: `${Math.random() * 2 + 1}px`,
-              height: `${Math.random() * 2 + 1}px`,
-              animationDelay: `${Math.random() * 5}s`,
-              animationDuration: `${Math.random() * 3 + 2}s`
+              width: `${Math.random() * 1.5 + 0.5}px`, // 縮小一點星星尺寸，顯得更遠更真實
+              height: `${Math.random() * 1.5 + 0.5}px`,
+              animationDelay: `${Math.random() * 30}s`,
+              animationDuration: `${Math.random() * 20 + 30}s` // 極大幅度調慢，30-50秒閃爍一次
             }}
           ></div>
         ))}
@@ -386,11 +386,11 @@ const RelationshipGraph = () => {
               return (sId === node.id && tId === hoverNode.id) || (tId === node.id && sId === hoverNode.id);
             });
 
-            // 呼吸感邏輯 - 顯著增強縮放與頻率
+            // 呼吸感邏輯 - 調慢頻率，讓動態更優雅
             const seed = (node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)) % 100;
-            const time = (Date.now() + seed * 100) * 0.003; // 加快頻率
-            const breath = Math.sin(time) * 0.25 + 1.1; // 0.85 ~ 1.35 之間的縮放，基礎設為 1.1 讓它偏大
-            const glowBreath = Math.sin(time * 1.5) * 0.4 + 0.6; // 0.2 ~ 1.0 之間的發光感更強
+            const time = (Date.now() + seed * 100) * 0.0015; // 調慢頻率
+            const breath = Math.sin(time) * 0.2 + 1.1; // 0.9 ~ 1.3 之間的縮放，基礎設為 1.1 讓它偏大
+            const glowBreath = Math.sin(time * 1.2) * 0.3 + 0.7; // 0.4 ~ 1.0 之間的發光感更穩定
 
             const safeScale = Math.max(0.1, globalScale);
             const baseSize = (10 + (node.importance / 15)) * breath; // 增大基礎尺寸
