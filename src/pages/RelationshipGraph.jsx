@@ -10,6 +10,23 @@ const RelationshipGraph = () => {
   const [dimensions, setDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [filterTag, setFilterTag] = useState('全部');
 
+  const [hoverNode, setHoverNode] = useState(null);
+  const [imgCache, setImgCache] = useState({});
+
+  // 預載入圖片快取
+  useEffect(() => {
+    if (!contacts) return;
+    contacts.forEach(c => {
+      if (c.avatar && !imgCache[c.id]) {
+        const img = new Image();
+        img.src = c.avatar;
+        img.onload = () => {
+          setImgCache(prev => ({ ...prev, [c.id]: img }));
+        };
+      }
+    });
+  }, [contacts]);
+
   const categories = useMemo(() => {
     const customCats = userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要'];
     return ['全部', ...customCats];
@@ -177,6 +194,7 @@ const RelationshipGraph = () => {
               navigate(`/profile/${node.id}`);
             }
           }}
+          onNodeHover={node => setHoverNode(node)}
           onNodeDragEnd={node => {
             node.fx = node.x;
             node.fy = node.y;
@@ -188,16 +206,19 @@ const RelationshipGraph = () => {
           d3VelocityDecay={0.1}
           d3Force={(forceName, force) => {
             if (forceName === 'charge') {
-              force.strength(node => node.isCategory ? -1000 : -150); 
+              force.strength(node => node.isCategory ? -1200 : -300); 
             }
             if (forceName === 'link') {
-              force.distance(link => link.isHubLink ? 100 : 50); 
-              force.strength(link => link.isHubLink ? 0.5 : 0.1);
+              force.distance(link => link.isHubLink ? 120 : 60); 
+              force.strength(link => link.isHubLink ? 0.4 : 0.05);
             }
           }}
           linkCanvasObject={(link, ctx, globalScale) => {
+            const isRelated = hoverNode && (link.source.id === hoverNode.id || link.target.id === hoverNode.id);
+            const opacity = hoverNode ? (isRelated ? 0.6 : 0.02) : 0.15;
+            
             // 檢查節點距離，如果太遠則不畫線
-            const MAX_DISTANCE = 150;
+            const MAX_DISTANCE = 250;
             const dx = link.target.x - link.source.x;
             const dy = link.target.y - link.source.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -205,56 +226,93 @@ const RelationshipGraph = () => {
             if (distance > MAX_DISTANCE) return;
 
             // 畫連線
-            const fontSize = 10 / globalScale;
             ctx.beginPath();
-            ctx.strokeStyle = link.color;
-            ctx.lineWidth = link.value / globalScale;
+            ctx.strokeStyle = isRelated ? '#00e5ff' : link.color;
+            ctx.globalAlpha = opacity;
+            ctx.lineWidth = (isRelated ? 2 : 0.5) / globalScale;
             ctx.moveTo(link.source.x, link.source.y);
             ctx.lineTo(link.target.x, link.target.y);
             ctx.stroke();
+            ctx.globalAlpha = 1;
           }}
           nodeCanvasObject={(node, ctx, globalScale) => {
+            const isHovered = hoverNode && node.id === hoverNode.id;
+            const isRelated = hoverNode && !isHovered && graphData.links.some(l => 
+              (l.source.id === node.id && l.target.id === hoverNode.id) ||
+              (l.target.id === node.id && l.source.id === hoverNode.id)
+            );
+
             const label = node.name;
-            const fontSize = node.isCategory ? 14 / globalScale : 11 / globalScale;
-            ctx.font = `${node.isCategory ? '900' : 'bold'} ${fontSize}px "Inter", sans-serif`;
+            const baseSize = node.isCategory ? 12 : 7;
+            const size = (isHovered ? baseSize * 1.5 : (isRelated ? baseSize * 1.2 : baseSize)) / globalScale;
             
-            if (node.isCategory) {
-              // Draw Category Hub
-              ctx.shadowColor = node.color;
-              ctx.shadowBlur = 20 / globalScale;
-              ctx.fillStyle = node.color;
+            // 背景光暈 (Halo)
+            if (isHovered || node.isCategory || (node.isContact && node.val > 20)) {
+              const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, size * 2.5);
+              gradient.addColorStop(0, `${node.color}${isHovered ? '60' : '30'}`);
+              gradient.addColorStop(1, 'transparent');
+              ctx.fillStyle = gradient;
               ctx.beginPath();
-              ctx.arc(node.x, node.y, 8 / globalScale, 0, 2 * Math.PI, false);
+              ctx.arc(node.x, node.y, size * 2.5, 0, 2 * Math.PI);
+              ctx.fill();
+            }
+
+            if (node.isCategory) {
+              // 分類 Hub 繪製
+              ctx.fillStyle = '#0a0a0c';
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
               ctx.fill();
               
-              // Glow ring
               ctx.strokeStyle = node.color;
               ctx.lineWidth = 2 / globalScale;
+              ctx.setLineDash([2, 2]);
               ctx.beginPath();
-              ctx.arc(node.x, node.y, 12 / globalScale, 0, 2 * Math.PI, false);
+              ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
               ctx.stroke();
-              ctx.shadowBlur = 0;
+              ctx.setLineDash([]);
 
-              // Label for Category
+              // 文字
+              ctx.font = `900 ${12 / globalScale}px "Inter"`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillStyle = '#ffffff';
               ctx.fillText(label, node.x, node.y);
             } else {
-              // Draw Contact Node
-              ctx.shadowColor = node.color;
-              ctx.shadowBlur = 10 / globalScale;
-              ctx.fillStyle = node.color;
+              // 聯絡人節點繪製
+              ctx.save();
               ctx.beginPath();
-              ctx.arc(node.x, node.y, 5 / globalScale, 0, 2 * Math.PI, false);
-              ctx.fill();
-              ctx.shadowBlur = 0;
+              ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+              ctx.clip();
 
-              // Label for Contact
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-              ctx.fillText(label, node.x, node.y + 12 / globalScale);
+              const img = imgCache[node.id];
+              if (img) {
+                ctx.drawImage(img, node.x - size, node.y - size, size * 2, size * 2);
+              } else {
+                ctx.fillStyle = node.color;
+                ctx.fillRect(node.x - size, node.y - size, size * 2, size * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `bold ${size}px "Inter"`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label.charAt(0), node.x, node.y);
+              }
+              ctx.restore();
+
+              // 外圈
+              ctx.strokeStyle = isHovered ? '#00e5ff' : node.color;
+              ctx.lineWidth = (isHovered ? 3 : 1.5) / globalScale;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
+              ctx.stroke();
+
+              // 名字標籤
+              if (isHovered || globalScale > 1.5) {
+                ctx.font = `${isHovered ? '900' : '500'} ${10 / globalScale}px "Inter"`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.5)';
+                ctx.fillText(label, node.x, node.y + size + 10 / globalScale);
+              }
             }
           }}
         />
