@@ -224,13 +224,28 @@ const RelationshipGraph = () => {
             }
           }}
           linkCanvasObject={(link, ctx, globalScale) => {
-            const isRelated = hoverNode && (link.source.id === hoverNode.id || link.target.id === hoverNode.id);
+            if (!link.source || !link.target) return;
+            
+            const getID = (node) => typeof node === 'object' ? node.id : node;
+            const sourceId = getID(link.source);
+            const targetId = getID(link.target);
+            const hoverId = hoverNode ? hoverNode.id : null;
+
+            const isRelated = hoverId && (sourceId === hoverId || targetId === hoverId);
             const opacity = hoverNode ? (isRelated ? 0.6 : 0.02) : 0.15;
             
+            // 檢查節點位置是否存在
+            const sx = link.source.x;
+            const sy = link.source.y;
+            const tx = link.target.x;
+            const ty = link.target.y;
+            
+            if (sx === undefined || sy === undefined || tx === undefined || ty === undefined) return;
+
             // 檢查節點距離，如果太遠則不畫線
             const MAX_DISTANCE = 250;
-            const dx = link.target.x - link.source.x;
-            const dy = link.target.y - link.source.y;
+            const dx = tx - sx;
+            const dy = ty - sy;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
             if (distance > MAX_DISTANCE) return;
@@ -239,32 +254,44 @@ const RelationshipGraph = () => {
             ctx.beginPath();
             ctx.strokeStyle = isRelated ? '#00e5ff' : link.color;
             ctx.globalAlpha = opacity;
-            ctx.lineWidth = (isRelated ? 2 : 0.5) / globalScale;
-            ctx.moveTo(link.source.x, link.source.y);
-            ctx.lineTo(link.target.x, link.target.y);
+            ctx.lineWidth = (isRelated ? 2 : 0.5) / Math.max(0.5, globalScale);
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(tx, ty);
             ctx.stroke();
             ctx.globalAlpha = 1;
           }}
           nodeCanvasObject={(node, ctx, globalScale) => {
             const isHovered = hoverNode && node.id === hoverNode.id;
-            const isRelated = hoverNode && !isHovered && graphData.links.some(l => 
-              (l.source.id === node.id && l.target.id === hoverNode.id) ||
-              (l.target.id === node.id && l.source.id === hoverNode.id)
-            );
+            
+            const getID = (n) => typeof n === 'object' ? n.id : n;
+            const isRelated = hoverNode && !isHovered && graphData.links.some(l => {
+              const sId = getID(l.source);
+              const tId = getID(l.target);
+              const hId = hoverNode.id;
+              const nId = node.id;
+              return (sId === nId && tId === hId) || (tId === nId && sId === hId);
+            });
 
             const label = node.name;
             const baseSize = node.isCategory ? 12 : 7;
-            const size = (isHovered ? baseSize * 1.5 : (isRelated ? baseSize * 1.2 : baseSize)) / globalScale;
+            const safeScale = Math.max(0.1, globalScale);
+            const size = (isHovered ? baseSize * 1.5 : (isRelated ? baseSize * 1.2 : baseSize)) / safeScale;
             
+            if (node.x === undefined || node.y === undefined) return;
+
             // 背景光暈 (Halo)
             if (isHovered || node.isCategory || (node.isContact && node.val > 20)) {
-              const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, size * 2.5);
-              gradient.addColorStop(0, `${node.color}${isHovered ? '60' : '30'}`);
-              gradient.addColorStop(1, 'transparent');
-              ctx.fillStyle = gradient;
-              ctx.beginPath();
-              ctx.arc(node.x, node.y, size * 2.5, 0, 2 * Math.PI);
-              ctx.fill();
+              try {
+                const gradient = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, size * 2.5);
+                gradient.addColorStop(0, `${node.color}${isHovered ? '60' : '30'}`);
+                gradient.addColorStop(1, 'transparent');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, size * 2.5, 0, 2 * Math.PI);
+                ctx.fill();
+              } catch (e) {
+                // 防止 gradient 報錯導致黑屏
+              }
             }
 
             if (node.isCategory) {
@@ -275,7 +302,7 @@ const RelationshipGraph = () => {
               ctx.fill();
               
               ctx.strokeStyle = node.color;
-              ctx.lineWidth = 2 / globalScale;
+              ctx.lineWidth = 2 / safeScale;
               ctx.setLineDash([2, 2]);
               ctx.beginPath();
               ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
@@ -283,7 +310,7 @@ const RelationshipGraph = () => {
               ctx.setLineDash([]);
 
               // 文字
-              ctx.font = `900 ${12 / globalScale}px "Inter"`;
+              ctx.font = `900 ${12 / safeScale}px "Inter"`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               ctx.fillStyle = '#ffffff';
@@ -311,17 +338,17 @@ const RelationshipGraph = () => {
 
               // 外圈
               ctx.strokeStyle = isHovered ? '#00e5ff' : node.color;
-              ctx.lineWidth = (isHovered ? 3 : 1.5) / globalScale;
+              ctx.lineWidth = (isHovered ? 3 : 1.5) / safeScale;
               ctx.beginPath();
               ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
               ctx.stroke();
 
               // 名字標籤
-              if (isHovered || globalScale > 1.5) {
-                ctx.font = `${isHovered ? '900' : '500'} ${10 / globalScale}px "Inter"`;
+              if (isHovered || safeScale > 1.5) {
+                ctx.font = `${isHovered ? '900' : '500'} ${10 / safeScale}px "Inter"`;
                 ctx.textAlign = 'center';
                 ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.5)';
-                ctx.fillText(label, node.x, node.y + size + 10 / globalScale);
+                ctx.fillText(label, node.x, node.y + size + 10 / safeScale);
               }
             }
           }}
