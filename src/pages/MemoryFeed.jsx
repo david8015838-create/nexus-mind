@@ -240,6 +240,9 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
 
       console.log("📡 開始模型嘗試迴圈...");
       for (const baseName of modelNames) {
+        // 更新 UI 狀態，讓使用者知道正在嘗試哪個模型
+        setScanningStatus(`正在透過 ${baseName} 進行神經分析...`);
+        
         // 嘗試多種可能的路徑格式
         const formats = [baseName, `models/${baseName}`];
         for (const modelId of formats) {
@@ -260,19 +263,24 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
 
             const result = await Promise.race([resultPromise, timeoutPromise]);
             
+            console.log(`📡 ${modelId} 請求完成，正在解析回應...`);
+            
             // 檢查回應是否包含有效的 content
             const response = await result.response;
             if (!response) throw new Error("Empty Response");
+            
+            console.log(`📡 ${modelId} 回應內容已取得，開始進行安全檢查...`);
             
             // 2026 年 SDK 的安全檢查：確保 candidate 存在
             const candidates = response.candidates || [];
             if (candidates.length === 0) {
               // 檢查是否被安全過濾器攔截
               const feedback = response.promptFeedback;
+              console.warn(`⚠️ ${modelId} 無候選回應。Feedback:`, feedback);
               if (feedback && feedback.blockReason) {
                 throw new Error(`安全性攔截: ${feedback.blockReason}`);
               }
-              throw new Error("模型未回傳任何結果");
+              throw new Error("模型未回傳任何結果 (可能是地區限制或內容過濾)");
             }
             
             extractedText = response.text();
