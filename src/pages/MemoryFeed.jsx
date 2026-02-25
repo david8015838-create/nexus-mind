@@ -176,8 +176,7 @@ const MemoryFeed = () => {
     let base64String = "";
     
     try {
-      // 1. 圖片壓縮處理
-      const compressImage = (file) => {
+      const compressImage = (file, maxSize = 900, quality = 0.6) => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(file);
@@ -186,8 +185,8 @@ const MemoryFeed = () => {
             img.src = event.target.result;
             img.onload = () => {
               const canvas = document.createElement('canvas');
-              const MAX_WIDTH = 1024;
-              const MAX_HEIGHT = 1024;
+              const MAX_WIDTH = maxSize;
+              const MAX_HEIGHT = maxSize;
               let width = img.width;
               let height = img.height;
 
@@ -208,7 +207,7 @@ const MemoryFeed = () => {
               const ctx = canvas.getContext('2d');
               ctx.drawImage(img, 0, 0, width, height);
               
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+              const dataUrl = canvas.toDataURL('image/jpeg', quality);
               resolve(dataUrl);
             };
             img.onerror = () => reject(new Error("圖片載入失敗，請嘗試其他檔案。"));
@@ -217,11 +216,9 @@ const MemoryFeed = () => {
         });
       };
 
-      console.log("📸 開始處理圖片...");
-      base64String = await compressImage(file);
+      base64String = await compressImage(file, 900, 0.6);
       const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
 
-      // 2. 初始化 Gemini AI
       const apiKey = (userProfile?.aiKey || localStorage.getItem('GEMINI_API_KEY') || "").trim();
       
       if (!apiKey) {
@@ -238,85 +235,60 @@ const MemoryFeed = () => {
 JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen@chailease.com.tw","company":"合迪股份有限公司","title":"分處副總經理","address":"806616 高雄市前鎮區民權二路8號11樓","website":"www.finatrade.com.tw","summary":"陳志鑫是合迪股份有限公司的分處副總經理"}`;
       
       const genAI = new GoogleGenerativeAI(apiKey);
-      // 嚴格鎖定 2026 年模型：僅使用 2.5 以上版本，徹底移除已失效的 1.5 系列
-      const modelNames = [
-        "gemini-3-flash-preview", 
-        "gemini-2.5-flash"
-      ];
-      let lastError = null;
+      const parseJson = (t) => {
+        const s = t.replace(/```json|```/g, '').trim();
+        try { return JSON.parse(s); } catch (_) {}
+        const i = s.indexOf('{');
+        const j = s.lastIndexOf('}');
+        if (i !== -1 && j !== -1 && j > i) {
+          const sub = s.slice(i, j + 1);
+          return JSON.parse(sub);
+        }
+        throw new Error("JSON Parse Error");
+      };
+      const tryModel = async (modelId, data64) => {
+        setScanningStatus(`正在透過 ${modelId.includes('2.5') ? 'gemini-2.5-flash' : 'gemini-3-flash'} 進行分析...`);
+        const model = genAI.getGenerativeModel({ model: modelId });
+        const rp = model.generateContent([ocrPrompt, { inlineData: { data: data64, mimeType: 'image/jpeg' } }]);
+        const tp = new Promise((_, reject) => setTimeout(() => reject(new Error("Request Timeout")), 12000));
+        const r = await Promise.race([rp, tp]);
+        const resp = await r.response;
+        if (!resp) throw new Error("Empty Response");
+        const cs = resp.candidates || [];
+        if (cs.length === 0) {
+          const fb = resp.promptFeedback;
+          if (fb && fb.blockReason) throw new Error(`Security Block: ${fb.blockReason}`);
+          throw new Error("No Result");
+        }
+        const text = resp.text();
+        return parseJson(text);
+      };
       let data = null;
-      let extractedText = "";
-      const triedModels = [];
-
-      console.log("📡 開始模型嘗試迴圈...");
-      for (const baseName of modelNames) {
-        // 更新 UI 狀態，讓使用者知道正在嘗試哪個模型
-        setScanningStatus(`正在透過 ${baseName} 進行分析...`);
-        
-        let modelSuccess = false;
-        // 嘗試多種可能的路徑格式
-        const formats = [baseName, `models/${baseName}`];
-        for (const modelId of formats) {
-          if (modelSuccess) break;
+      try {
+        data = await tryModel('models/gemini-2.5-flash', base64Data);
+      } catch (e1) {
+        try {
+          base64String = await compressImage(file, 720, 0.55);
+          const base64DataSmall = base64String.replace(/^data:image\/\w+;base64,/, "");
+          data = await tryModel('models/gemini-2.5-flash', base64DataSmall);
+        } catch (e2) {
           try {
-            triedModels.push(modelId);
-            const model = genAI.getGenerativeModel({ model: modelId });
-            
-            // 加入 30 秒超時控制
-            const resultPromise = model.generateContent([
-              ocrPrompt,
-              { inlineData: { data: base64Data, mimeType: 'image/jpeg' } }
-            ]);
-
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error("Request Timeout")), 30000)
-            );
-
-            const result = await Promise.race([resultPromise, timeoutPromise]);
-            const response = await result.response;
-            if (!response) throw new Error("Empty Response");
-            
-            const candidates = response.candidates || [];
-            if (candidates.length === 0) {
-              const feedback = response.promptFeedback;
-              if (feedback && feedback.blockReason) {
-                throw new Error(`Security Block: ${feedback.blockReason}`);
-              }
-              throw new Error("No Result");
-            }
-            
-            extractedText = response.text();
-            if (extractedText) {
-              const cleanJson = extractedText.replace(/```json|```/g, '').trim();
-              data = JSON.parse(cleanJson);
-              modelSuccess = true;
-              break; 
-            }
-          } catch (e) {
-            lastError = e;
-            if (e.message?.includes('404') || e.message?.includes('403') || e.message?.includes('401')) {
-              break;
-            }
+            const d = base64String.replace(/^data:image\/\w+;base64,/, "");
+            data = await tryModel('models/gemini-3-flash-preview', d);
+          } catch (e3) {
+            throw e3;
           }
         }
-        if (data) break;
       }
 
-      if (!data) {
-        const errorMsg = `所有模型嘗試均失敗。\n嘗試清單: ${triedModels.join(', ')}\n最後一個錯誤: ${lastError?.message}`;
-        throw new Error(errorMsg);
-      }
-
-      // 3. 檢查重複聯絡人並合併
-      const existingContact = contacts.find(c => 
-        (data.phone && c.phone === data.phone) || 
-        (data.name && c.name === data.name)
+      const existingContact = contacts?.find(c => 
+        (data.phone && c.phone === data.phone) ||
+        (data.name && c.name && c.name === data.name)
       );
 
       let targetContactId;
       if (existingContact) {
         const confirmMerge = window.confirm(`偵測到重複聯絡人：${existingContact.name}${existingContact.phone ? ` (${existingContact.phone})` : ''}\n\n是否要將名片資訊合併至現有檔案？\n(這將更新其公司、職稱與名片圖片)`);
-        
         if (confirmMerge) {
           targetContactId = existingContact.id;
           await updateContact(targetContactId, {
@@ -329,7 +301,6 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
             lastUpdated: new Date().toISOString()
           });
         } else {
-          // 如果使用者不合併，則建立新聯絡人
           targetContactId = await addContact({
             name: data.name || '新聯絡人',
             phone: data.phone || '',
@@ -347,7 +318,6 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
           });
         }
       } else {
-        // 正常建立新聯絡人
         targetContactId = await addContact({
           name: data.name || '新聯絡人',
           phone: data.phone || '',
@@ -364,7 +334,6 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
           importance: 50,
         });
       }
-
       if (navigator.vibrate) navigator.vibrate(50);
       navigate(`/profile/${targetContactId}`);
     } catch (error) {
