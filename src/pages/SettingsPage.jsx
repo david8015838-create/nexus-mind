@@ -459,6 +459,36 @@ const SettingsPage = () => {
                 </div>
               </button>
             </div>
+            
+            <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest px-1 pt-4 block">AI 金鑰</label>
+            <div className="bg-white/5 border border-white/5 rounded-2xl overflow-hidden">
+              <div className="px-4 py-4 space-y-3">
+                <p className="text-[12px] text-white/50">貼上您的 Gemini API Key。金鑰僅儲存在本裝置與您的私人雲端資料庫，不會公開。</p>
+                <div className="flex gap-2">
+                  <input 
+                    type="password"
+                    defaultValue={userProfile.aiKey || localStorage.getItem('GEMINI_API_KEY') || ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      localStorage.setItem('GEMINI_API_KEY', v);
+                    }}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-1 ring-primary"
+                    placeholder="以 AIza 開頭的金鑰字串"
+                  />
+                  <button
+                    onClick={async () => {
+                      const k = localStorage.getItem('GEMINI_API_KEY') || '';
+                      await updateProfile({ aiKey: k });
+                      alert('AI 金鑰已儲存');
+                    }}
+                    className="px-4 py-3 rounded-xl bg-primary text-white text-xs font-bold hover:bg-primary-dark transition-all"
+                  >
+                    儲存
+                  </button>
+                </div>
+                <p className="text-[11px] text-white/30">為避免被 GitHub Secret Scanning 鎖定，生產版不會將金鑰打包到程式碼。</p>
+              </div>
+            </div>
             {/* Categories Section */}
             <div className="space-y-4 pt-4 border-t border-white/5">
               <div className="flex justify-between items-center">

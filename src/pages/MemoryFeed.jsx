@@ -89,6 +89,7 @@ const MemoryFeed = () => {
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [syncStatus, setSyncStatus] = useState('synced'); // 'syncing', 'synced', 'offline'
   const [isRecording, setIsRecording] = useState(false);
+  const [lastScanAt, setLastScanAt] = useState(0);
 
   const categories = useMemo(() => {
     return userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要'];
@@ -158,6 +159,18 @@ const MemoryFeed = () => {
     const file = event.target.files[0];
     if (!file) return;
 
+    if (!currentUser) {
+      alert('請先登入以使用名片掃描功能。');
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastScanAt < 60_000) {
+      const remain = Math.ceil((60_000 - (now - lastScanAt)) / 1000);
+      alert(`操作過於頻繁，請在 ${remain} 秒後再試。`);
+      return;
+    }
+
     setIsScanning(true);
     let keyStatus = "未初始化";
     let base64String = "";
@@ -209,10 +222,10 @@ const MemoryFeed = () => {
       const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
 
       // 2. 初始化 Gemini AI
-      const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || "").trim();
+      const apiKey = (userProfile?.aiKey || localStorage.getItem('GEMINI_API_KEY') || "").trim();
       
       if (!apiKey) {
-        throw new Error("找不到 API Key，請檢查設定");
+        throw new Error("找不到 AI 金鑰。請到「設定」頁貼上金鑰或於此裝置的瀏覽器 LocalStorage 設定 GEMINI_API_KEY。");
       }
 
       const ocrPrompt = `你是一個專業的名片辨識系統。請嚴格按照以下規範提取資訊並回傳 JSON：
@@ -372,6 +385,7 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
 
       alert(`【辨識失敗】${errorReason}`);
     } finally {
+      setLastScanAt(Date.now());
       setIsScanning(false);
       setIsFabOpen(false);
     }
@@ -578,13 +592,25 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         <div className="relative">
           {isFabOpen && (
             <div className="absolute bottom-full right-0 mb-4 space-y-3 animate-in slide-in-from-bottom-4 fade-in duration-300">
-              <label className="flex items-center justify-end gap-3 cursor-pointer group">
-                <span className="bg-[#1c1f27] border border-white/10 px-4 py-2 rounded-2xl text-xs font-bold text-white/80 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">掃描名片</span>
-                <div className="size-14 bg-[#1c1f27] border border-white/10 rounded-[22px] flex items-center justify-center text-white/60 hover:text-primary hover:border-primary/50 transition-all shadow-2xl">
-                  <span className="material-symbols-outlined text-2xl">contact_page</span>
-                </div>
-                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-              </label>
+              {currentUser ? (
+                <label className="flex items-center justify-end gap-3 cursor-pointer group">
+                  <span className="bg-[#1c1f27] border border-white/10 px-4 py-2 rounded-2xl text-xs font-bold text-white/80 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">掃描名片</span>
+                  <div className="size-14 bg-[#1c1f27] border border-white/10 rounded-[22px] flex items-center justify-center text-white/60 hover:text-primary hover:border-primary/50 transition-all shadow-2xl">
+                    <span className="material-symbols-outlined text-2xl">contact_page</span>
+                  </div>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                </label>
+              ) : (
+                <button 
+                  className="flex items-center justify-end gap-3 group"
+                  onClick={login}
+                >
+                  <span className="bg-[#1c1f27] border border-white/10 px-4 py-2 rounded-2xl text-xs font-bold text-white/80 shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity">登入後使用掃描</span>
+                  <div className="size-14 bg-[#1c1f27] border border-white/10 rounded-[22px] flex items-center justify-center text-white/60 hover:text-primary hover:border-primary/50 transition-all shadow-2xl">
+                    <span className="material-symbols-outlined text-2xl">login</span>
+                  </div>
+                </button>
+              )}
               <button 
                 className="flex items-center justify-end gap-3 group"
                 onClick={() => setIsModalOpen(true)}
