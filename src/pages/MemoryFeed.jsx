@@ -90,6 +90,7 @@ const MemoryFeed = () => {
   const [syncStatus, setSyncStatus] = useState('synced'); // 'syncing', 'synced', 'offline'
   const [isRecording, setIsRecording] = useState(false);
   const [lastScanAt, setLastScanAt] = useState(0);
+  const [activeCategory, setActiveCategory] = useState('全部');
 
   const categories = useMemo(() => {
     return userProfile?.categories || ['朋友', '同事', '家人', '交際', '重要'];
@@ -103,13 +104,25 @@ const MemoryFeed = () => {
   }, [categories]);
 
   const filteredContacts = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    return contacts?.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tags?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
-    ).sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()) || [];
-  }, [contacts, searchQuery]);
+    let result = contacts || [];
+
+    // 1. Filter by Category
+    if (activeCategory !== '全部') {
+      result = result.filter(c => c.tags?.includes(activeCategory));
+    }
+
+    // 2. Filter by Search Query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(c => 
+        c.name.toLowerCase().includes(query) ||
+        c.company?.toLowerCase().includes(query) ||
+        c.tags?.some(t => t.toLowerCase().includes(query))
+      );
+    }
+    
+    return result.sort((a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime());
+  }, [contacts, searchQuery, activeCategory]);
 
   const handleAddMemory = async () => {
     let contactId = selectedContactId;
@@ -165,16 +178,17 @@ const MemoryFeed = () => {
     }
 
     const now = Date.now();
-    if (now - lastScanAt < 60_000) {
-      const remain = Math.ceil((60_000 - (now - lastScanAt)) / 1000);
+    if (now - lastScanAt < 15_000) {
+      const remain = Math.ceil((15_000 - (now - lastScanAt)) / 1000);
       alert(`操作過於頻繁，請在 ${remain} 秒後再試。`);
       return;
     }
 
     setIsScanning(true);
+    setScanningStatus('正在壓縮圖片...');
     let keyStatus = "未初始化";
     let base64String = "";
-    
+
     try {
       const compressImage = (file, maxSize = 900, quality = 0.6) => {
         return new Promise((resolve, reject) => {
@@ -216,8 +230,9 @@ const MemoryFeed = () => {
         });
       };
 
-      base64String = await compressImage(file, 900, 0.6);
+      base64String = await compressImage(file, 900, 0.7);
       const base64Data = base64String.replace(/^data:image\/\w+;base64,/, "");
+      setScanningStatus('正在呼叫 AI 分析名片...');
 
       const apiKey = (userProfile?.aiKey || localStorage.getItem('GEMINI_API_KEY') || "").trim();
       
@@ -246,11 +261,11 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         }
         throw new Error("JSON Parse Error");
       };
-      const tryModel = async (modelId, data64) => {
-        setScanningStatus(`正在透過 ${modelId.includes('2.5') ? 'gemini-2.5-flash' : 'gemini-3-flash'} 進行分析...`);
+      const tryModel = async (modelId, data64, attempt = '') => {
+        setScanningStatus(`正在透過 ${modelId} 分析名片${attempt}...`);
         const model = genAI.getGenerativeModel({ model: modelId });
         const rp = model.generateContent([ocrPrompt, { inlineData: { data: data64, mimeType: 'image/jpeg' } }]);
-        const tp = new Promise((_, reject) => setTimeout(() => reject(new Error("Request Timeout")), 12000));
+        const tp = new Promise((_, reject) => setTimeout(() => reject(new Error("Request Timeout")), 40000));
         const r = await Promise.race([rp, tp]);
         const resp = await r.response;
         if (!resp) throw new Error("Empty Response");
@@ -263,23 +278,35 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
         const text = resp.text();
         return parseJson(text);
       };
+      // Model 輪換策略：依序嘗試，確保一定成功
+      // lite 優先（約 1-2s），失敗才換 flash（約 5s），確保速度又有品質保底
+      const modelQueue = [
+        { id: 'models/gemini-2.5-flash-lite', data: base64Data,  label: '第1次' },
+        { id: 'models/gemini-2.5-flash',      data: base64Data,  label: '第2次（高品質模型）' },
+        { id: 'models/gemini-2.5-flash-lite', data: null,        label: '第3次（縮圖重試）', compress: true },
+        { id: 'models/gemini-2.5-flash',      data: null,        label: '第4次（縮圖+高品質）', compress: true },
+      ];
       let data = null;
-      try {
-        data = await tryModel('models/gemini-2.5-flash', base64Data);
-      } catch (e1) {
+      let lastError = null;
+      for (const step of modelQueue) {
         try {
-          base64String = await compressImage(file, 720, 0.55);
-          const base64DataSmall = base64String.replace(/^data:image\/\w+;base64,/, "");
-          data = await tryModel('models/gemini-2.5-flash', base64DataSmall);
-        } catch (e2) {
-          try {
-            const d = base64String.replace(/^data:image\/\w+;base64,/, "");
-            data = await tryModel('models/gemini-3-flash-preview', d);
-          } catch (e3) {
-            throw e3;
+          let imgData = step.data;
+          if (step.compress) {
+            setScanningStatus(`${step.label}：重新壓縮圖片...`);
+            const small = await compressImage(file, 640, 0.5);
+            imgData = small.replace(/^data:image\/\w+;base64,/, "");
+            base64String = small;
           }
+          data = await tryModel(step.id, imgData, step.label);
+          break; // 成功即跳出
+        } catch (e) {
+          lastError = e;
+          console.warn(`[${step.label}] ${step.id} 失敗:`, e.message);
+          // 若是 API Key 錯誤或 JSON 格式錯誤，不繼續輪換
+          if (e.message.includes('API_KEY_INVALID') || e.message.includes('403') || e.message.includes('PERMISSION_DENIED')) break;
         }
       }
+      if (!data) throw lastError || new Error("所有模型均辨識失敗");
 
       const existingContact = contacts?.find(c => 
         (data.phone && c.phone === data.phone) ||
@@ -344,12 +371,18 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       let errorReason = error.message || '無詳細訊息';
 
       // 針對常見錯誤進行友善化處理
-       if (errorReason.includes('403') || errorReason.includes('PERMISSION_DENIED')) {
-         errorReason = "API 權限遭拒。請檢查：\n1. Google Cloud Console 是否正確設定「網頁來源限制 (Referrer Restrictions)」\n2. API 限制是否已勾選 Generative Language API\n3. 您的所在地區是否支援 (若在中國/港澳需開啟海外 VPN)";
-       } else if (errorReason.includes('429') || errorReason.includes('RESOURCE_EXHAUSTED')) {
+      if (errorReason.includes('403') || errorReason.includes('PERMISSION_DENIED')) {
+        errorReason = "API 權限遭拒。請檢查：\n1. Google Cloud Console 是否正確設定「網頁來源限制 (Referrer Restrictions)」\n2. API 限制是否已勾選 Generative Language API\n3. 您的所在地區是否支援 (若在中國/港澳需開啟海外 VPN)";
+      } else if (errorReason.includes('429') || errorReason.includes('RESOURCE_EXHAUSTED')) {
         errorReason = "請求太頻繁，請稍等一分鐘後再試。";
       } else if (errorReason.includes('404')) {
-        errorReason = "找不到指定的 AI 模型，可能該版本已停用。";
+        errorReason = "找不到指定的 AI 模型，可能該版本已停用。請確認 API Key 有效。";
+      } else if (errorReason.includes('Request Timeout')) {
+        errorReason = "網路請求逾時，請確認網路連線穩定後再試。";
+      } else if (errorReason.includes('JSON Parse Error')) {
+        errorReason = "AI 無法辨識此名片格式，請確保圖片清晰、光線充足後重試。";
+      } else if (errorReason.includes('Security Block')) {
+        errorReason = "名片圖片被 AI 安全機制封鎖，請嘗試其他圖片。";
       }
 
       alert(`【辨識失敗】${errorReason}`);
@@ -472,11 +505,12 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
       {/* Filter Tabs */}
       <div className="mb-8 overflow-x-auto no-scrollbar">
         <div className="flex gap-2 min-w-max">
-          {['全部', '地點', '名片', '重要'].map((tab, i) => (
+          {['全部', ...categories].map((tab) => (
             <button 
               key={tab}
+              onClick={() => setActiveCategory(tab)}
               className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-300 ${
-                i === 0 
+                activeCategory === tab 
                   ? 'bg-primary text-white shadow-lg shadow-primary/20' 
                   : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white border border-white/5'
               }`}
@@ -504,6 +538,13 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
               <span className="material-symbols-outlined text-4xl">database_off</span>
             </div>
             <p className="text-sm font-medium">數據庫空空如也，開始記錄你的第一份記憶</p>
+          </div>
+        )}
+
+        {filteredContacts.length === 0 && contacts?.length > 0 && !isScanning && (
+          <div className="flex flex-col items-center justify-center py-12 text-white/20">
+            <span className="material-symbols-outlined text-3xl mb-2">search_off</span>
+            <p className="text-xs">沒有找到符合條件的聯絡人</p>
           </div>
         )}
         
