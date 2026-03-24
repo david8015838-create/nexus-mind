@@ -395,101 +395,113 @@ JSON 格式範例：{"name":"陳志鑫","phone":"0913-889-333","email":"KaneChen
 
   return (
     <div className="w-full h-full">
-      {/* Header with improved styling */}
-      <header className="sticky top-0 z-40 -mx-4 px-6 pt-8 pb-4 mb-2 transition-all duration-300">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#030303] via-[#030303]/80 to-transparent pointer-events-none -z-10"></div>
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button 
+      {/* Header */}
+      <header className="sticky top-0 z-40 -mx-4 px-5 pt-8 pb-4 mb-2 transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#06060a] via-[#06060a]/90 to-transparent pointer-events-none -z-10"></div>
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
               onClick={() => setShowQR(true)}
-              className="size-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/20 transition-all active:scale-90 group"
+              className="size-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90 group"
+              style={{ background: 'rgba(240,180,41,0.08)', border: '1px solid rgba(240,180,41,0.15)' }}
             >
-              <span className="material-symbols-outlined text-[22px] group-hover:rotate-12 transition-transform">qr_code_2</span>
+              <span className="material-symbols-outlined text-[22px] group-hover:rotate-12 transition-transform" style={{ color: 'rgba(240,180,41,0.7)' }}>qr_code_2</span>
             </button>
-            <div 
+            <div
               className="relative group cursor-pointer"
               onClick={() => navigate('/settings')}
             >
-              <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="size-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 p-0.5 shadow-lg shadow-primary/20 relative z-10">
-                <div className="w-full h-full rounded-[14px] bg-[#0a0a0c] flex items-center justify-center overflow-hidden">
+              <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: 'rgba(124,109,255,0.15)', filter: 'blur(8px)' }} />
+              <div className="size-12 rounded-2xl p-0.5 relative z-10" style={{ background: 'linear-gradient(135deg, #7c6dff, #5b4ee6)', boxShadow: '0 0 16px rgba(124,109,255,0.3)' }}>
+                <div className="w-full h-full rounded-[14px] flex items-center justify-center overflow-hidden" style={{ background: '#0d0d14' }}>
                   {userProfile?.avatar ? (
-                    <img 
-                      src={userProfile.avatar} 
-                      className="w-full h-full object-cover" 
-                      alt="avatar" 
-                    />
+                    <img src={userProfile.avatar} className="w-full h-full object-cover" alt="avatar" />
                   ) : (
-                    <span className="material-symbols-outlined text-white/20 text-2xl">person</span>
+                    <span className="material-symbols-outlined text-2xl" style={{ color: 'rgba(255,255,255,0.2)' }}>person</span>
                   )}
                 </div>
               </div>
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-white bg-clip-text">社交情報鏈</h1>
-              <div className="flex items-center gap-2">
-                <span className="size-1.5 rounded-full bg-primary animate-pulse"></span>
-                <p className="text-[10px] font-black text-white/30 tracking-[0.2em] uppercase">Nexus Core Active</p>
+              <h1 className="text-[22px] font-black tracking-tight" style={{ color: '#f0f0ff', letterSpacing: '-0.025em' }}>社交情報鏈</h1>
+              <div className="flex items-center gap-1.5">
+                <span className="size-1.5 rounded-full animate-pulse" style={{ background: '#7c6dff' }} />
+                <p className="text-[10px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(124,109,255,0.6)' }}>Nexus Core Active</p>
               </div>
             </div>
           </div>
 
-          <button 
+          <button
+            type="button"
             onClick={() => setShowGuide(true)}
-            className="size-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-primary hover:bg-primary/10 hover:border-primary/20 transition-all active:scale-90 group"
+            className="size-11 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-90 group"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(124,109,255,0.12)' }}
           >
-            <span className="material-symbols-outlined text-[22px] group-hover:rotate-12 transition-transform">help_outline</span>
+            <span className="material-symbols-outlined text-[22px] group-hover:rotate-12 transition-transform" style={{ color: 'rgba(255,255,255,0.35)' }}>help_outline</span>
           </button>
         </div>
-        
-        {/* Horizontal Search inside Header */}
+
+        {/* Search Bar */}
         <div className="relative group">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <span className="material-symbols-outlined text-white/20 group-focus-within:text-primary transition-colors">search</span>
+            <span className="material-symbols-outlined text-[20px] transition-colors duration-200 group-focus-within:text-[#7c6dff]" style={{ color: '#5a5a80' }}>search</span>
           </div>
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="搜尋記憶、標籤或姓名..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all"
+            className="search-input w-full py-3.5 pl-12 pr-4 text-sm font-medium"
+            style={{ height: '52px' }}
           />
         </div>
       </header>
 
       {/* Reminders Section */}
       {reminders.length > 0 && (
-        <div className="px-6 py-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-primary/10 border border-primary/20 rounded-[28px] p-5 backdrop-blur-md">
+        <div className="px-1 py-4 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div
+            className="rounded-[24px] p-5"
+            style={{
+              background: 'linear-gradient(135deg, rgba(124,109,255,0.1) 0%, rgba(91,78,230,0.06) 100%)',
+              border: '1px solid rgba(124,109,255,0.2)',
+              boxShadow: '0 0 20px rgba(124,109,255,0.08)',
+            }}
+          >
             <div className="flex items-center gap-2 mb-4">
-              <span className="material-symbols-outlined text-primary text-[20px]">notification_important</span>
-              <h2 className="text-xs font-bold text-primary uppercase tracking-widest">近期社交日程</h2>
+              <span className="material-symbols-outlined text-[20px]" style={{ color: '#7c6dff' }}>notification_important</span>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.15em]" style={{ color: '#7c6dff' }}>近期社交日程</h2>
             </div>
             <div className="space-y-4">
               {reminders.map(rem => (
-                <div key={rem.id} className="flex items-center justify-between group">
+                <div key={rem.id} className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-white mb-0.5 truncate">{rem.title}</h3>
-                    <div className="flex gap-2">
+                    <h3 className="text-sm font-bold truncate" style={{ color: '#f0f0ff' }}>{rem.title}</h3>
+                    <div className="flex gap-2 mt-0.5">
                       {rem.contactIds.slice(0, 3).map(cid => (
-                        <button 
+                        <button
                           key={cid}
+                          type="button"
                           onClick={() => navigate(`/profile/${cid}`)}
-                          className="text-[10px] text-primary/80 font-bold hover:text-primary transition-colors underline decoration-primary/30 underline-offset-2"
+                          className="text-[10px] font-bold transition-colors underline underline-offset-2"
+                          style={{ color: '#a89bff', textDecorationColor: 'rgba(124,109,255,0.4)' }}
                         >
                           {contacts.find(c => c.id === cid)?.name}
                         </button>
                       ))}
-                      {rem.contactIds.length > 3 && <span className="text-[10px] text-white/30">...</span>}
+                      {rem.contactIds.length > 3 && <span className="text-[10px]" style={{ color: '#5a5a80' }}>...</span>}
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-4">
-                    <p className="text-[10px] font-black text-primary uppercase">
+                    <p className="text-[10px] font-black uppercase" style={{ color: '#7c6dff' }}>
                       {rem.diffDays === 0 ? '今天' : `${rem.diffDays} 天後`}
                     </p>
-                    <button 
+                    <button
+                      type="button"
                       onClick={() => navigate('/vault')}
-                      className="text-[10px] font-bold text-white/30 hover:text-white transition-colors flex items-center gap-1 mt-1"
+                      className="text-[10px] font-bold transition-colors flex items-center gap-1 mt-1 ml-auto"
+                      style={{ color: '#5a5a80' }}
                     >
                       查看
                       <span className="material-symbols-outlined text-[12px]">arrow_forward</span>

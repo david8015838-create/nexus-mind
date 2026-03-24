@@ -3,9 +3,9 @@ import BottomNav from './BottomNav';
 
 const Layout = ({ children }) => {
   return (
-    <div className="bg-nexus min-h-screen text-white font-sans selection:bg-primary/30 overflow-x-hidden">
+    <div className="bg-nexus min-h-screen text-[#f0f0ff] font-sans selection:bg-[#7c6dff]/30 overflow-x-hidden">
       <div className="max-w-[480px] mx-auto min-h-screen flex flex-col relative">
-        <div className="flex-1 px-4 pt-6 pb-32">
+        <div className="flex-1 px-4 pt-6 pb-32 relative z-10">
           {children}
         </div>
       </div>
